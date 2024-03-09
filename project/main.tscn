@@ -1,0 +1,19 @@
+[gd_scene load_steps=4 format=3 uid="uid://d20uyxtr1xmgc"]
+
+[ext_resource type="PackedScene" uid="uid://x2x6yhaqgrqj" path="res://map.tscn" id="1_dejeu"]
+[ext_resource type="PackedScene" uid="uid://dlu4qedg0ei40" path="res://player.tscn" id="1_kh27k"]
+[ext_resource type="Script" path="res://main.gd" id="1_mhhcv"]
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_mhhcv")
+
+[node name="Player" parent="." instance=ExtResource("1_kh27k")]
+
+[node name="Map" parent="." instance=ExtResource("1_dejeu")]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -0.00172786, 0.999999, 0, -0.999999, -0.00172786, 0, 0, 0)
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 20, 0)
+visible = false
