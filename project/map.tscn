@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://tcw2p2f6a8oa" path="res://floor_chip.tscn" id="2_qh1fe"]
 [ext_resource type="PackedScene" uid="uid://brrfgsg06rndo" path="res://wall_chip.tscn" id="3_qtwvx"]
 
-[node name="Map" type="Node3D"]
+[node name="Map" type="GdStaticMapManager"]
 script = ExtResource("1_sefq5")
 floor_chip = ExtResource("2_qh1fe")
 wall_chip = ExtResource("3_qtwvx")

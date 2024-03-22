@@ -1,8 +1,12 @@
-[gd_scene load_steps=4 format=3 uid="uid://dlu4qedg0ei40"]
+[gd_scene load_steps=5 format=3 uid="uid://dlu4qedg0ei40"]
 
 [ext_resource type="Script" path="res://player.gd" id="1_yl56w"]
 
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_amjci"]
+albedo_color = Color(0, 0.203922, 1, 1)
+
 [sub_resource type="CylinderMesh" id="CylinderMesh_qktcx"]
+material = SubResource("StandardMaterial3D_amjci")
 height = 1.0
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_xqlak"]

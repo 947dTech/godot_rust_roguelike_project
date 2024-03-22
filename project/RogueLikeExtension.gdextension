@@ -1,0 +1,14 @@
+[configuration]
+entry_symbol = "gdext_rust_init"
+compatibility_minimum = 4.1
+reloadable = true
+
+[libraries]
+linux.debug.x86_64 =     "res://../extension/roguelike_extension/target/debug/libroguelike_extension.so"
+linux.release.x86_64 =   "res://../extension/roguelike_extension/target/release/libroguelike_extension.so"
+windows.debug.x86_64 =   "res://../extension/roguelike_extension/target/debug/roguelike_extension.dll"
+windows.release.x86_64 = "res://../extension/roguelike_extension/target/release/roguelike_extension.dll"
+macos.debug =            "res://../extension/roguelike_extension/target/debug/libroguelike_extension.dylib"
+macos.release =          "res://../extension/roguelike_extension/target/release/libroguelike_extension.dylib"
+macos.debug.arm64 =      "res://../extension/roguelike_extension/target/debug/libroguelike_extension.dylib"
+macos.release.arm64 =    "res://../extension/roguelike_extension/target/release/libroguelike_extension.dylib"

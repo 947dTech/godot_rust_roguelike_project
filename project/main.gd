@@ -14,10 +14,17 @@ var player_direction: int
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	dungeon_width = get_node("Map").dungeon_width
-	dungeon_height = get_node("Map").dungeon_height
-	print("dungeon_size: ", dungeon_width, " X ", dungeon_height)
-	player_position = Vector2(dungeon_width / 2, dungeon_height / 2)
+	var gamemaster = get_node("GameMaster")
+	gamemaster.initialize_level(100, 100)
+	var gridmap = get_node("Map")
+	gridmap.initialize_map(gamemaster)
+	#dungeon_width = gridmap.dungeon_width
+	#dungeon_height = gridmap.dungeon_height
+	#print("dungeon_size: ", dungeon_width, " X ", dungeon_height)
+	# TODO: プレイヤーの初期スポーン地点は移動可能な場所でなければいけない
+	#  そのため、mapmanagerで候補をあげてほしい
+	#player_position = Vector2(dungeon_width / 2, dungeon_height / 2)
+	player_position = gamemaster.get_player_position()
 	get_node("Player").init_position(get_node("Map").grid_to_geometry(player_position))
 	player_direction = 0
 
@@ -64,19 +71,21 @@ func _process(delta):
 			player_direction = (player_direction + 1) % 4	
 			orientation = -1
 
-		# 平行移動
-		var next_player_position = player_position + direction
-		# mapに目標位置に移動可能かどうか問い合わせる
-		if gridmap.map_value(next_player_position.x, next_player_position.y) == 1:
-			print("position ", next_player_position, " is invalid, unable to move.")
-		else:
-			# 移動可能だった場合、playerを内部的に移動させて、アニメーションを実行させる。
-			player.set_next_position(gridmap.grid_to_geometry(next_player_position))
-			player_position = next_player_position
-		
-		# 回転移動
-		# マップに問い合わせなくてもできるので
-		player.set_next_rotation(orientation)
+		# TODO: GameMasterに問い合わせて移動可能かどうかを決める。
+		#  gridmap.get_tileは廃止して、そもそもこの判断はRust側で書く。
+		## 平行移動
+		#var next_player_position = player_position + direction
+		## mapに目標位置に移動可能かどうか問い合わせる
+		#if gridmap.get_tile(next_player_position.x, next_player_position.y) == 1:
+			#print("position ", next_player_position, " is invalid, unable to move.")
+		#else:
+			## 移動可能だった場合、playerを内部的に移動させて、アニメーションを実行させる。
+			#player.set_next_position(gridmap.grid_to_geometry(next_player_position))
+			#player_position = next_player_position
+		#
+		## 回転移動
+		## マップに問い合わせなくてもできるので
+		#player.set_next_rotation(orientation)
 		
 	else:
 		print("moving action blocked.")
