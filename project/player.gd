@@ -42,9 +42,9 @@ func _physics_process(delta):
 
 	if diff.length() > 0.05:
 		# 目標の姿勢に到達していない場合は、velocityを入力。
-		print("current position: ", transform.origin)
-		print("target position: ", target_pos)
-		print("position diff: ", diff)	
+		#print("current position: ", transform.origin)
+		#print("target position: ", target_pos)
+		#print("position diff: ", diff)	
 	
 		var direction = Vector3.ZERO
 		#direction.x = next_player_position.x - player_position.x
@@ -78,10 +78,10 @@ func _physics_process(delta):
 		current_rotation = current_rotation + delta_r
 		transform = transform.rotated(Vector3(0.0, 1.0, 0.0), delta_r)
 		transform.origin = current_pos
-		print("target rotation: ", target_rotation)
-		print("current rotation: ", current_rotation)
-		print(transform.basis)
-		print(transform.origin)
+		#print("target rotation: ", target_rotation)
+		#print("current rotation: ", current_rotation)
+		#print(transform.basis)
+		#print(transform.origin)
 
 		anim_playing = true
 	else:
@@ -96,8 +96,8 @@ func _physics_process(delta):
 			transform.basis = Basis(rotation_down)
 		elif current_direction == 1:
 			transform.basis = Basis(rotation_right)
-		print(transform.origin)  # = 並進ベクトル
-		print(transform.basis)  # = 回転行列
+		#print(transform.origin)  # = 並進ベクトル
+		#print(transform.basis)  # = 回転行列
 		current_rotation = 0.0
 		target_rotation = 0.0
 		anim_playing = false

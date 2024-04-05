@@ -16,8 +16,8 @@ func _process(delta):
 	pass
 
 func initialize_map(gamemaster):
-	print(gamemaster.dungeon_width)
-	print(gamemaster.dungeon_height)
+	#print(gamemaster.dungeon_width)
+	#print(gamemaster.dungeon_height)
 
 	var idx = 0
 	x0 = -(gamemaster.dungeon_width / 2.0) * chip_size

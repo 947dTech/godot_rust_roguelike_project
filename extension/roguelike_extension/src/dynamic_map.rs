@@ -1,17 +1,19 @@
-use godot::prelude::*;
+use crate::player::GamePlayer;
+use crate::mob::GameMob;
+use crate::item::GameItem;
 
 pub struct DynamicMapManager {
-    pub player_position: (i32, i32),
-    pub item_positions: Vec<(i32, i32)>,
-    pub enemy_positions: Vec<(i32, i32)>,
+    pub player: GamePlayer,
+    pub item_list: Vec<GameItem>,
+    pub mob_list: Vec<GameMob>,
 }
 
 impl DynamicMapManager {
     pub fn new() -> Self {
         Self {
-            player_position: (0, 0),
-            item_positions: vec![],
-            enemy_positions: vec![],
+            player: GamePlayer::new(),
+            item_list: vec![],
+            mob_list: vec![],
         }
     }
 }
