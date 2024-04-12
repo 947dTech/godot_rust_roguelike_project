@@ -76,7 +76,7 @@ func _physics_process(delta):
 		var current_pos = transform.origin
 		var delta_r = target_rotation * angular_speed * delta
 		current_rotation = current_rotation + delta_r
-		transform = transform.rotated(Vector3(0.0, 1.0, 0.0), delta_r)
+		get_node("Pivot").transform = get_node("Pivot").transform.rotated(Vector3(0.0, 1.0, 0.0), delta_r)
 		transform.origin = current_pos
 		#print("target rotation: ", target_rotation)
 		#print("current rotation: ", current_rotation)

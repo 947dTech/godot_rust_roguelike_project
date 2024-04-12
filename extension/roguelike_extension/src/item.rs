@@ -28,3 +28,10 @@ pub enum SideEffect {
     Fault,  // アイテムの使用に失敗
     None,  // アイテムを使ったが、自分以外に効果を及ぼさない
 }
+
+
+// ドロップしているアイテムを管理するクラス
+pub struct DroppedItem {
+    pub position: (i32, i32),
+    pub item: GameItem,
+}

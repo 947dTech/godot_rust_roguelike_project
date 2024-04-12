@@ -1,22 +1,22 @@
-[gd_scene load_steps=6 format=3 uid="uid://d20uyxtr1xmgc"]
+[gd_scene load_steps=8 format=3 uid="uid://d20uyxtr1xmgc"]
 
 [ext_resource type="PackedScene" uid="uid://dlu4qedg0ei40" path="res://player.tscn" id="1_kh27k"]
 [ext_resource type="Script" path="res://main.gd" id="1_mhhcv"]
+[ext_resource type="PackedScene" uid="uid://ci3ub0ptq0q4y" path="res://item.tscn" id="2_5sv3h"]
+[ext_resource type="PackedScene" uid="uid://dbclpmq3j38f0" path="res://mob.tscn" id="3_t80t0"]
 [ext_resource type="PackedScene" uid="uid://tcw2p2f6a8oa" path="res://floor_chip.tscn" id="4_k37sl"]
 [ext_resource type="Script" path="res://map.gd" id="4_ku8ft"]
 [ext_resource type="PackedScene" uid="uid://brrfgsg06rndo" path="res://wall_chip.tscn" id="5_mj6gj"]
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_mhhcv")
+item_scene = ExtResource("2_5sv3h")
+mob_scene = ExtResource("3_t80t0")
 
 [node name="Player" parent="." instance=ExtResource("1_kh27k")]
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, -0.00172786, 0.999999, 0, -0.999999, -0.00172786, 0, 0, 0)
-
-[node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 100, 0)
-current = true
 
 [node name="GameMaster" type="GameMaster" parent="."]
 
@@ -24,3 +24,16 @@ current = true
 script = ExtResource("4_ku8ft")
 floor_chip = ExtResource("4_k37sl")
 wall_chip = ExtResource("5_mj6gj")
+
+[node name="SubViewportContainer" type="SubViewportContainer" parent="."]
+offset_left = 35.0
+offset_top = 32.0
+offset_right = 163.0
+offset_bottom = 160.0
+
+[node name="SubViewport" type="SubViewport" parent="SubViewportContainer"]
+size = Vector2i(128, 128)
+
+[node name="Camera3D" type="Camera3D" parent="SubViewportContainer/SubViewport"]
+transform = Transform3D(1, 0, 0, 0, -4.37114e-08, 1, 0, -1, -4.37114e-08, 0, 50, 0)
+current = true

@@ -1,10 +1,10 @@
 use crate::player::GamePlayer;
 use crate::mob::GameMob;
-use crate::item::GameItem;
+use crate::item::DroppedItem;
 
 pub struct DynamicMapManager {
     pub player: GamePlayer,
-    pub item_list: Vec<GameItem>,
+    pub item_list: Vec<DroppedItem>,
     pub mob_list: Vec<GameMob>,
 }
 

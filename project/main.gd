@@ -14,10 +14,14 @@ var player_direction: int
 # y = (player_direction / 2 - 1) % 2
 # x = (-player_direction / 2 + 2) % 2
 
+@export var item_scene: PackedScene
+@export var mob_scene: PackedScene
+
+
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	gamemaster = get_node("GameMaster")
-	gamemaster.initialize_level(100, 100)
+	gamemaster.initialize_level(64, 64)
 	var gridmap = get_node("Map")
 	gridmap.initialize_map(gamemaster)
 	#dungeon_width = gridmap.dungeon_width
@@ -36,6 +40,28 @@ func _ready():
 	#gamemaster.print_player_items()
 	#gamemaster.give_health_potion_to_player()
 	#gamemaster.player_attack()
+	
+	# 落ちているアイテムの情報を取得
+	var item_positions = gamemaster.get_dropped_item_positions()
+	for pos in item_positions:
+		print("Item pos: ", pos)
+		var item_inst = item_scene.instantiate()
+		item_inst.transform = item_inst.transform.translated(
+			get_node("Map").grid_to_geometry(pos))
+		add_child(item_inst)
+
+	# 敵の情報を取得
+	var mob_positions = gamemaster.get_mob_positions()
+	for pos in mob_positions:
+		print("Mob pos: ", pos)
+		var mob_inst = mob_scene.instantiate()
+		mob_inst.transform = mob_inst.transform.translated(
+			get_node("Map").grid_to_geometry(pos))
+		add_child(mob_inst)
+		
+	# カメラを切り替え
+	get_node("Player/TPCamera3D").make_current()
+	
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):

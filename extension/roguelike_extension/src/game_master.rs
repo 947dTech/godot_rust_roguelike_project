@@ -2,6 +2,8 @@ use godot::prelude::*;
 use crate::player::Direction;
 use crate::item::GameItem;
 use crate::item::HealthPotion;
+use crate::item::DroppedItem;
+use crate::mob::GameMob;
 use crate::static_map::StaticMapManager;
 use crate::dynamic_map::DynamicMapManager;
 
@@ -63,22 +65,67 @@ impl GameMaster {
         self.copy_from_static_map_manager();
 
         // プレイヤーの初期位置を候補からランダムに選択
-        let n_position_candidates = self.static_map_manager.room_centers.len();
+        let n_position_candidates = self.static_map_manager.room_params.len();
         if n_position_candidates == 0 {
             return;
         } else if n_position_candidates == 1 {
-            self.dynamic_map_manager.player.position = self.static_map_manager.room_centers[0];
+            let param = &self.static_map_manager.room_params[0];
+            self.dynamic_map_manager.player.position = 
+                (param.room_center_x, param.room_center_y);
             return;
         } else {
             let position_idx = (rand::random::<f32>() * (n_position_candidates - 1) as f32) as usize;
-            self.dynamic_map_manager.player.position = self.static_map_manager.room_centers[position_idx];
+            let param = &self.static_map_manager.room_params[position_idx];
+            self.dynamic_map_manager.player.position = 
+                (param.room_center_x, param.room_center_y);
         }
 
         // アイテムの初期位置を設定
-
+        let item_max = 10;
+        // 小部屋ごとに均一になるようにアイテムを配置したい
+        // アイテムの総数/小部屋の数で小部屋ごとの配置数を決める
+        // 端数が出るので、あえて+1している
+        let item_per_room = (item_max / self.static_map_manager.room_params.len()) + 1;
+        let mut item_count = 0;
+        for param in &self.static_map_manager.room_params {
+            for _ in 0..item_per_room {
+                if item_count >= item_max {
+                    break;
+                }
+                let x = param.x + (rand::random::<f32>() * param.width as f32) as i32;
+                let y = param.y + (rand::random::<f32>() * param.height as f32) as i32;
+                // 床である場所にのみアイテムを配置
+                if (self.static_map_manager.dungeon_map_2d[x as usize][y as usize] == 0) {
+                    let item = GameItem::HealthPotion(HealthPotion {heal_amount: 10});
+                    self.dynamic_map_manager.item_list.push(DroppedItem {position: (x, y), item: item});
+                    item_count += 1;
+                }
+                // 無限ループを避け、かつアイテム数にランダム性を持たせるため厳密にmaxを狙わない
+            }
+        }
+        godot_print!("{} items generated (max: {})", item_count, item_max);
 
         // 敵の初期位置を設定
-
+        let mob_max = 10;
+        // アイテムと同様の生成方法とする。
+        let mob_per_room = (mob_max / self.static_map_manager.room_params.len()) + 1;
+        let mut mob_count = 0;
+        for param in &self.static_map_manager.room_params {
+            for _ in 0..mob_per_room {
+                if mob_count >= mob_max {
+                    break;
+                }
+                let x = param.x + (rand::random::<f32>() * param.width as f32) as i32;
+                let y = param.y + (rand::random::<f32>() * param.height as f32) as i32;
+                // 床である場所にのみモブを配置
+                if (self.static_map_manager.dungeon_map_2d[x as usize][y as usize] == 0) {
+                    let mob = GameMob::new(x, y);
+                    self.dynamic_map_manager.mob_list.push(mob);
+                    mob_count += 1;
+                }
+            }
+        }
+        godot_print!("{} mobs generated (max: {})", mob_count, mob_max);
     }
 
     // gamemasterはplayerに関する情報をgodotに渡す
@@ -182,6 +229,26 @@ impl GameMaster {
         godot_print!("After using item");
         self.print_player_items();
         self.print_player_status();
+    }
+
+    // 落ちているアイテムの情報を取得
+    #[func]
+    fn get_dropped_item_positions(&self) -> Array<Vector2i> {
+        let mut positions = array![];
+        for item in &self.dynamic_map_manager.item_list {
+            positions.push(Vector2i::new(item.position.0, item.position.1));
+        }
+        positions
+    }
+
+    // 敵の情報を取得
+    #[func]
+    fn get_mob_positions(&self) -> Array<Vector2i> {
+        let mut positions = array![];
+        for mob in &self.dynamic_map_manager.mob_list {
+            positions.push(Vector2i::new(mob.position.0, mob.position.1));
+        }
+        positions
     }
 
     // StaticMapManagerのdungeon_map_2dをコピーしてGodotからアクセスできるdungeon_map_1dにセットする

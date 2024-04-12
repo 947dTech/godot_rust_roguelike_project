@@ -7,7 +7,7 @@ max, min
   
 // 部屋をつなぐための方向を定義したenum
 #[derive(Debug, PartialEq)]
-enum Direction {
+pub enum Direction {
     North,
     South,
     East,
@@ -16,14 +16,14 @@ enum Direction {
 }
   
 // 二分木が持つべき構造体を定義
-struct BSPNodeParams {
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-    room_center_x: i32,
-    room_center_y: i32,
-    connect_to: Direction,
+pub struct BSPNodeParams {
+    pub x: i32,
+    pub y: i32,
+    pub width: i32,
+    pub height: i32,
+    pub room_center_x: i32,
+    pub room_center_y: i32,
+    pub connect_to: Direction,
 }
   
 // 二分木を構成するenumを定義
@@ -56,18 +56,20 @@ fn print_tree(tree: &BSPTree) {
 // 二分木を生成する再帰関数
 // ノードが必ず左右に存在することを保証しなければならない。
 fn generate_bsp_tree(x: i32, y: i32, width: i32, height: i32, connect_to: Direction, level: i32) -> BSPTree {
-    if width < 25 || height < 25 {
+    let min_room_size = 16;
+    if width < min_room_size || height < min_room_size {
         return BSPTree::Nil;
     }
   
-    if level > 3 {
+    let max_level = 3;
+    if level > max_level {
         return BSPTree::Nil;
     }
   
     // let split = level % 2 == 0;
     let split = rand::random::<i32>() % 2 == 0;
     if split {
-        let split_x = max(min(x + 1 + rand::random::<i32>() % (width - 2), x + width - 25), x + 25);
+        let split_x = max(min(x + 1 + rand::random::<i32>() % (width - 2), x + width - min_room_size), x + min_room_size);
         // let split_x = width / 2 + x;
         // for i in y..y + height {
         //   dungeon[split_x as usize][i as usize] = 0;
@@ -94,7 +96,7 @@ fn generate_bsp_tree(x: i32, y: i32, width: i32, height: i32, connect_to: Direct
             right: Box::new(right),
         };
     } else {
-        let split_y = max(min(y + 1 + rand::random::<i32>() % (height - 2), y + height - 25), y + 25);
+        let split_y = max(min(y + 1 + rand::random::<i32>() % (height - 2), y + height - min_room_size), y + min_room_size);
         // let split_y = height / 2 + y;
         // for i in x..x + width {
         //   dungeon[i as usize][split_y as usize] = 0;
@@ -126,7 +128,7 @@ fn generate_bsp_tree(x: i32, y: i32, width: i32, height: i32, connect_to: Direct
 pub fn generate_dungeon(
     width: i32,
     height: i32
-) -> (Vec<Vec<i32>>, Vec<(i32, i32)>, Vec<(i32, i32)>) {
+) -> (Vec<Vec<i32>>, Vec<BSPNodeParams>) {
     // dense matrixとしてdungeonを定義
     let mut dungeon = vec![vec![0; height as usize]; width as usize];
     for i in 0..width {
@@ -135,9 +137,8 @@ pub fn generate_dungeon(
         }
     }
     // 確実に壁に埋まらない場所として、BSPTreeで確保した部屋の中心をすべて戻す
-    let mut room_centers = vec![];
     // 各部屋の大きさがわかれば、部屋の中心から壁ではない場所を容易に探せる
-    let mut room_dimensions = vec![];
+    let mut room_params = vec![];
 
     println!("generate dungeon");
   
@@ -223,8 +224,8 @@ pub fn generate_dungeon(
                 // 左右どちらかがNilであった場合に初めて塗りつぶしを行う
                 if let BSPTree::Nil = left.as_ref() {
                     // 内側をborderサイズ分だけ残して0で塗りつぶす
-                    // borderは2--(2+5)のうちランダムで決める
-                    let border = 2 + rand::random::<u8>() % 5;
+                    // borderは2--(2+3)のうちランダムで決める
+                    let border = 2 + rand::random::<u8>() % 3;
                     for i in value.x + border as i32..value.x + value.width - border as i32 {
                         for j in value.y + border as i32..value.y + value.height - border as i32 {
                             dungeon[i as usize][j as usize] = 0;
@@ -371,30 +372,39 @@ pub fn generate_dungeon(
     }
     connect_rooms(&mut dungeon, &mut tree);
 
-    // room_centersに部屋の中心をすべて格納する
+    // room_paramsに部屋の情報をすべて格納する
     fn get_room_dimensions(
-        room_centers: &mut Vec<(i32, i32)>, room_dimensions: &mut Vec<(i32, i32)>, tree: &mut BSPTree
+        room_params: &mut Vec<BSPNodeParams>, tree: &mut BSPTree
     ) {
         match tree {
             BSPTree::Node { value, left, right } => {
                 if let BSPTree::Node { value: left_value, left: left_left, right: left_right } = left.as_ref() {
-                    get_room_dimensions(room_centers, room_dimensions, left);
+                    get_room_dimensions(room_params, left);
                 }
                 if let BSPTree::Node { value: right_value, left: right_left, right: right_right } = right.as_ref() {
-                    get_room_dimensions(room_centers, room_dimensions, right);
+                    get_room_dimensions(room_params, right);
                 }
 
                 // 左右どちらかがNilであった場合に初めて部屋の中心とサイズを保存する
                 if let BSPTree::Nil = left.as_ref() {
-                    room_centers.push((value.room_center_x, value.room_center_y));
-                    room_dimensions.push((value.width, value.height));
+                    room_params.push(
+                        BSPNodeParams {
+                            x: value.x,
+                            y: value.y,
+                            width: value.width,
+                            height: value.height,
+                            room_center_x: value.room_center_x,
+                            room_center_y: value.room_center_y,
+                            connect_to: Direction::None,
+                        }
+                    );
                 }
 
             },
             _ => {}
         }
     }
-    get_room_dimensions(&mut room_centers, &mut room_dimensions, &mut tree);
+    get_room_dimensions(&mut room_params, &mut tree);
   
-    (dungeon, room_centers, room_dimensions)
+    (dungeon, room_params)
 }
