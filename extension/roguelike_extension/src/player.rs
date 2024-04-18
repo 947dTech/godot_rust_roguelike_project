@@ -90,8 +90,7 @@ impl GamePlayer {
     }
 
     // 攻撃を行った場合、ダメージとそれを与える座標をセットにして、リストで返す。
-    pub fn attack(&self) -> Vec<(i32, i32, i32)> {
-        let mut result = vec![];
+    pub fn attack(&self, result: &mut Vec<(i32, i32, i32)>) {
         let (mut x, mut y) = self.position;
         let mut damage = self.attack;
         if self.active_item_index < self.items.len() {
@@ -126,6 +125,5 @@ impl GamePlayer {
             }
         }
         result.push((x, y, damage));
-        result
     }
 }

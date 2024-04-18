@@ -1,5 +1,9 @@
+use crate::player::Direction;
+
 pub struct GameMob {
+    pub mob_id: i32,
     pub position: (i32, i32),
+    pub direction: Direction,
     pub hp: i32,
     pub attack: i32,
     pub defense: i32,
@@ -8,16 +12,42 @@ pub struct GameMob {
 impl GameMob {
     pub fn new(x: i32, y: i32) -> Self {
         Self {
+            mob_id: 0,
             position: (x, y),
+            direction: Direction::Up,
             hp: 10,
             attack: 5,
             defense: 2,
         }
     }
 
-    pub fn attack(&self) -> Vec<(i32, i32, i32)> {
-        let mut attack_info = vec![];
-        attack_info.push((self.position.0, self.position.1, self.attack));
-        attack_info
+    pub fn attack(&self, result: &mut Vec<(i32, i32, i32)>) {
+        let (mut x, mut y) = self.position;
+        let mut damage = self.attack;
+
+        // Directionに応じて座標を変更
+        match self.direction {
+            Direction::Up => y -= 1,
+            Direction::UpRight => {
+                x += 1;
+                y -= 1;
+            }
+            Direction::Right => x += 1,
+            Direction::DownRight => {
+                x += 1;
+                y += 1;
+            }
+            Direction::Down => y += 1,
+            Direction::DownLeft => {
+                x -= 1;
+                y += 1;
+            }
+            Direction::Left => x -= 1,
+            Direction::UpLeft => {
+                x -= 1;
+                y -= 1;
+            }
+        }
+        result.push((x, y, damage));
     }
 }

@@ -1,5 +1,10 @@
 extends CharacterBody3D
 
+# 基本的にプレイヤーと同じだが、複数存在するためIDで管理を行う。
+@export var mob_id: int
+# グリッドマップ上での現在位置を持っておく
+var current_position_2d: Vector2i
+
 @export var speed: float = 2.0
 @export var angular_speed: float = 2.0
 
@@ -29,16 +34,6 @@ func set_next_rotation(dir):
 	current_direction = (current_direction + dir + 4) % 4
 
 func _physics_process(delta):
-	# TODO: アニメーションの種類について
-	# - 移動
-	# - 攻撃モーション
-	# - やられモーション
-	# - アイテム使用モーション
-	# これらを場合分けして実行するようにする
-	
-	# TODO: モブのアニメーションと同期する必要がある。
-	# 例: 自分が攻撃->敵のやられ->敵の攻撃->自分のやられ
-	
 	# 目標位置に対してスライドするアニメーションを再生するだけ
 	# 現在の自分の表示位置が目標とする表示位置に達した場合にanim_playing = falseとする
 
@@ -112,3 +107,5 @@ func _physics_process(delta):
 		target_rotation = 0.0
 		anim_playing = false
 	move_and_slide()
+
+	

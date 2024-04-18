@@ -3,6 +3,7 @@ use crate::player::Direction;
 use crate::item::GameItem;
 use crate::item::HealthPotion;
 use crate::item::DroppedItem;
+use crate::item::SideEffect;
 use crate::mob::GameMob;
 use crate::static_map::StaticMapManager;
 use crate::dynamic_map::DynamicMapManager;
@@ -20,6 +21,12 @@ pub struct GameMaster {
     #[export]
     dungeon_map_1d: Array<i32>,
 
+    player_attack_info: Vec<(i32, i32, i32)>,
+    player_side_effect_info: Vec<SideEffect>,
+
+    mob_attack_info: Vec<(i32, i32, i32)>,
+    mob_side_effect_info: Vec<SideEffect>,
+
     base: Base<Node3D>,
 }
 
@@ -30,6 +37,10 @@ impl INode3D for GameMaster {
             dungeon_width: 100,
             dungeon_height: 100,
             dungeon_map_1d: Array::new(),
+            player_attack_info: vec![],
+            player_side_effect_info: vec![],
+            mob_attack_info: vec![],
+            mob_side_effect_info: vec![],
             static_map_manager: StaticMapManager::new(100, 100),
             dynamic_map_manager: DynamicMapManager::new(),
             base,
@@ -51,6 +62,10 @@ impl GameMaster {
                 dungeon_width: 100,
                 dungeon_height: 100,
                 dungeon_map_1d: Array::new(),
+                player_attack_info: vec![],
+                player_side_effect_info: vec![],
+                mob_attack_info: vec![],
+                mob_side_effect_info: vec![],
                 static_map_manager: StaticMapManager::new(100, 100),
                 dynamic_map_manager: DynamicMapManager::new(),
                 base,
@@ -119,7 +134,8 @@ impl GameMaster {
                 let y = param.y + (rand::random::<f32>() * param.height as f32) as i32;
                 // 床である場所にのみモブを配置
                 if (self.static_map_manager.dungeon_map_2d[x as usize][y as usize] == 0) {
-                    let mob = GameMob::new(x, y);
+                    let mut mob = GameMob::new(x, y);
+                    mob.mob_id = mob_count as i32;
                     self.dynamic_map_manager.mob_list.push(mob);
                     mob_count += 1;
                 }
@@ -176,9 +192,20 @@ impl GameMaster {
     #[func]
     fn player_move(&mut self, next_position: Vector2i) -> bool {
         let mut result = false;
+        // まず移動先がstatic_map上でfreeであることを確認
         if (self.static_map_manager.dungeon_map_2d[next_position.x as usize][next_position.y as usize] == 0) {
-            self.dynamic_map_manager.player.position = (next_position.x, next_position.y);
-            result = true;
+            // 次に移動先にmobがいないことを確認
+            let mut mob_exist = false;
+            for mob in &self.dynamic_map_manager.mob_list {
+                if mob.position == (next_position.x, next_position.y) {
+                    mob_exist = true;
+                    break;
+                }
+            }
+            if !mob_exist {
+                self.dynamic_map_manager.player.position = (next_position.x, next_position.y);
+                result = true;
+            }
         }
         result
     }
@@ -186,10 +213,222 @@ impl GameMaster {
     // playerに攻撃を指示
     #[func]
     fn player_attack(&mut self) {
-        let attack_info = self.dynamic_map_manager.player.attack();
-        // TODO: プレイヤーから帰ってきた攻撃情報をモブに反映
-        for (x, y, damage) in attack_info {
+        self.player_attack_info.clear();
+        self.dynamic_map_manager.player.attack(&mut self.player_attack_info);
+        // プレイヤーから帰ってきた攻撃情報を保存
+        for (x, y, damage) in &self.player_attack_info {
             godot_print!("Player Attack: x: {}, y: {}, damage: {}", x, y, damage);
+        }
+    }
+
+    // playerにアイテムを拾うよう指示
+    #[func]
+    fn player_pickup_item(&mut self) {
+        let (x, y) = self.dynamic_map_manager.player.position;
+        let mut item_idx = None;
+        for (idx, item) in self.dynamic_map_manager.item_list.iter().enumerate() {
+            if item.position == (x, y) {
+                item_idx = Some(idx);
+                break;
+            }
+        }
+        if let Some(idx) = item_idx {
+            let item = self.dynamic_map_manager.item_list.remove(idx);
+            self.dynamic_map_manager.player.add_item(item.item);
+        }
+    }
+
+    // playerにアイテムを使うよう指示
+    #[func]
+    fn player_use_item(&mut self, item_idx: i32) {
+        self.player_side_effect_info.clear();
+        self.dynamic_map_manager.player.select_item(item_idx as usize);
+        self.player_side_effect_info.push(self.dynamic_map_manager.player.use_item());
+    }
+
+    // playerのアイテム使用時のsideeffectの反映
+    fn applyPlayerSideEffect(&mut self) {
+        for (idx, side_effect) in self.player_side_effect_info.iter().enumerate() {
+            match side_effect {
+                SideEffect::Fault => {
+                    godot_print!("Item {} use failed", idx);
+                },
+                SideEffect::None => {
+                    godot_print!("Item {} use success", idx);
+                },
+            }
+        }
+    }
+
+    // playerのattack_infoの反映
+    fn applyPlayerAttackInfo(&mut self) {
+        for (x, y, damage) in &self.player_attack_info {
+            // モブの位置と一致するものがあればダメージを与える
+            let mut mob_idx = None;
+            for (idx, mob) in self.dynamic_map_manager.mob_list.iter().enumerate() {
+                if mob.position == (*x, *y) {
+                    mob_idx = Some(idx);
+                    break;
+                }
+            }
+            if let Some(idx) = mob_idx {
+                self.dynamic_map_manager.mob_list[idx].hp -= damage;
+                if self.dynamic_map_manager.mob_list[idx].hp <= 0 {
+                    self.dynamic_map_manager.mob_list.remove(idx);
+                }
+            }
+        }
+    }
+
+    // mobの行動を決定
+    // TODO: もっと複雑なAIを実装する
+    fn decideMobAction(&mut self) {
+        let mut mob_next_positions = vec![];
+
+        for mob in &mut self.dynamic_map_manager.mob_list {
+            // TODO: 同じ部屋に入ったモブだけがアクティブになるようにする
+
+            // プレイヤーの位置との距離を計算
+            let (px, py) = self.dynamic_map_manager.player.position;
+            let (mx, my) = mob.position;
+            let dx = px - mx;
+            let dy = py - my;
+            let abs_dx = dx.abs();
+            let abs_dy = dy.abs();
+            // プレイヤーに隣接している場合は攻撃
+            if abs_dx <= 1 && abs_dy <= 1 {
+                let mut attack_info = vec![];
+                // mobのdirectionをプレイヤーに向ける
+                if dx > 0 {
+                    if dy > 0 {
+                        mob.direction = Direction::DownRight;
+                    } else if dy < 0 {
+                        mob.direction = Direction::UpRight;
+                    } else {
+                        mob.direction = Direction::Right;
+                    }
+                } else if dx < 0 {
+                    if dy > 0 {
+                        mob.direction = Direction::DownLeft;
+                    } else if dy < 0 {
+                        mob.direction = Direction::UpLeft;
+                    } else {
+                        mob.direction = Direction::Left;
+                    }
+                } else {
+                    if dy > 0 {
+                        mob.direction = Direction::Down;
+                    } else if dy < 0 {
+                        mob.direction = Direction::Up;
+                    }
+                }
+                mob.attack(&mut attack_info);
+                for (x, y, damage) in &attack_info {
+                    self.mob_attack_info.push((*x, *y, *damage));
+                }
+            } else {
+                // そうでなければプレイヤーの方向に移動
+                // 移動したい位置を決めておいて、そのあとで実際移動できるかどうかを確認
+                let mut next_position = (mx, my);
+                if abs_dx > abs_dy {
+                    if dx > 0 {
+                        next_position = (mx + 1, my);
+                    } else {
+                        next_position = (mx - 1, my);
+                    }
+                } else {
+                    if dy > 0 {
+                        next_position = (mx, my + 1);
+                    } else {
+                        next_position = (mx, my - 1);
+                    }
+                }
+                // static_map上で空きがあれば移動候補に入れる
+                if self.static_map_manager.dungeon_map_2d[next_position.0 as usize][next_position.1 as usize] == 0 {
+                    mob_next_positions.push((mob.mob_id, next_position));
+                }
+            }
+        }
+
+        for (mob_id, next_position) in &mob_next_positions {
+            // mob_listの中のmobを全部読みだして
+            // mob_idが一致するものは自分なので一度無視
+            // それ以外のmobは、next_positionと一致しないかどうかを確認
+            // 一致するものがあれば移動しない
+            let mut can_move = true;
+            for mob in &self.dynamic_map_manager.mob_list {
+                if mob.mob_id == *mob_id {
+                    continue;
+                }
+                if mob.position == *next_position {
+                    can_move = false;
+                    break;
+                }
+            }
+            if can_move {
+                for mob in &mut self.dynamic_map_manager.mob_list {
+                    if mob.mob_id == *mob_id {
+                        mob.position = *next_position;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // mobのアイテム使用時のsideeffectの反映
+    fn applyMobSideEffect(&mut self) {
+        for (idx, side_effect) in self.mob_side_effect_info.iter().enumerate() {
+            match side_effect {
+                SideEffect::Fault => {
+                    godot_print!("Mob {} item use failed", idx);
+                },
+                SideEffect::None => {
+                    godot_print!("Mob {} item use success", idx);
+                },
+            }
+        }
+    }
+
+    // mobのattack_infoの反映
+    fn applyMobAttackInfo(&mut self) {
+        for (x, y, damage) in &self.mob_attack_info {
+            // プレイヤーの位置と一致するものがあればダメージを与える
+            if self.dynamic_map_manager.player.position == (*x, *y) {
+                self.dynamic_map_manager.player.hp -= damage;
+                if self.dynamic_map_manager.player.hp <= 0 {
+                    // ゲームオーバー
+                    godot_print!("Game Over");
+                }
+            }
+        }
+    }
+
+    // 1ターンを定義、godot側から進めるかどうかを決めて呼び出す。
+    #[func]
+    fn process(&mut self) {
+        // プレイヤーの行動はすでに反映された状態を起点とする。
+        // プレイヤーのアイテム使用時のsideeffectの反映
+        self.applyPlayerSideEffect();
+        // プレイヤーのattack_infoの反映
+        self.applyPlayerAttackInfo();
+
+        // TODO: モブの行動を決定
+        self.decideMobAction();
+
+        // モブのアイテム使用時のsideeffectの反映
+        self.applyMobSideEffect();
+        // モブのattack_infoの反映
+        self.applyMobAttackInfo();
+
+        // TODO: ターンの処理の結果、起きた結果をgodotに通知
+        // プレイヤーのHP<=0でゲーム終了
+        // モブのHP<=0でそのモブは削除
+        // プレイヤーがアイテムを拾った場合、そのアイテムはマップ上からは削除
+        // etc...
+        godot_print!("Player HP: {}", self.dynamic_map_manager.player.hp);
+        for mob in &self.dynamic_map_manager.mob_list {
+            godot_print!("Mob HP: {}", mob.hp);
         }
     }
 
@@ -241,7 +480,8 @@ impl GameMaster {
         positions
     }
 
-    // 敵の情報を取得
+    // 敵の情報を取得する関数群
+    // 敵の位置を取得
     #[func]
     fn get_mob_positions(&self) -> Array<Vector2i> {
         let mut positions = array![];
@@ -249,6 +489,16 @@ impl GameMaster {
             positions.push(Vector2i::new(mob.position.0, mob.position.1));
         }
         positions
+    }
+
+    // 敵のIDを取得
+    #[func]
+    fn get_mob_ids(&self) -> Array<i32> {
+        let mut ids = array![];
+        for mob in &self.dynamic_map_manager.mob_list {
+            ids.push(mob.mob_id);
+        }
+        ids
     }
 
     // StaticMapManagerのdungeon_map_2dをコピーしてGodotからアクセスできるdungeon_map_1dにセットする
