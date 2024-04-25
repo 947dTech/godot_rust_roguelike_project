@@ -39,6 +39,7 @@ impl GamePlayer {
         obj
     }
 
+    // TODO: プレイヤー側もDroppedItemを使うようにする
     // アイテムスロットの初期化、アイテム所持数は固定とする。
     pub fn init_items(&mut self, length: usize) {
         self.items.clear();

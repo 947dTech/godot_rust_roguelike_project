@@ -8,6 +8,9 @@ use crate::mob::GameMob;
 use crate::static_map::StaticMapManager;
 use crate::dynamic_map::DynamicMapManager;
 
+use std::rc::Rc;
+use std::cell::RefCell;
+
 #[derive(GodotClass)]
 #[class(base=Node3D)]
 pub struct GameMaster {
@@ -112,7 +115,12 @@ impl GameMaster {
                 // 床である場所にのみアイテムを配置
                 if (self.static_map_manager.dungeon_map_2d[x as usize][y as usize] == 0) {
                     let item = GameItem::HealthPotion(HealthPotion {heal_amount: 10});
-                    self.dynamic_map_manager.item_list.push(DroppedItem {position: (x, y), item: item});
+                    let ditem = DroppedItem {
+                        id: item_count as i32,
+                        position: (x, y),
+                        item: item
+                    };
+                    self.dynamic_map_manager.item_list.push(Rc::new(ditem));
                     item_count += 1;
                 }
                 // 無限ループを避け、かつアイテム数にランダム性を持たせるため厳密にmaxを狙わない
@@ -134,9 +142,8 @@ impl GameMaster {
                 let y = param.y + (rand::random::<f32>() * param.height as f32) as i32;
                 // 床である場所にのみモブを配置
                 if (self.static_map_manager.dungeon_map_2d[x as usize][y as usize] == 0) {
-                    let mut mob = GameMob::new(x, y);
-                    mob.mob_id = mob_count as i32;
-                    self.dynamic_map_manager.mob_list.push(mob);
+                    let mob = GameMob::new(mob_count as i32, x, y);
+                    self.dynamic_map_manager.mob_list.push(RefCell::new(mob));
                     mob_count += 1;
                 }
             }
@@ -197,7 +204,7 @@ impl GameMaster {
             // 次に移動先にmobがいないことを確認
             let mut mob_exist = false;
             for mob in &self.dynamic_map_manager.mob_list {
-                if mob.position == (next_position.x, next_position.y) {
+                if mob.borrow().position == (next_position.x, next_position.y) {
                     mob_exist = true;
                     break;
                 }
@@ -262,19 +269,24 @@ impl GameMaster {
 
     // playerのattack_infoの反映
     fn applyPlayerAttackInfo(&mut self) {
+        self.dynamic_map_manager.defeated_mob_id.clear();
         for (x, y, damage) in &self.player_attack_info {
             // モブの位置と一致するものがあればダメージを与える
             let mut mob_idx = None;
             for (idx, mob) in self.dynamic_map_manager.mob_list.iter().enumerate() {
-                if mob.position == (*x, *y) {
+                if mob.borrow().position == (*x, *y) {
                     mob_idx = Some(idx);
                     break;
                 }
             }
             if let Some(idx) = mob_idx {
-                self.dynamic_map_manager.mob_list[idx].hp -= damage;
-                if self.dynamic_map_manager.mob_list[idx].hp <= 0 {
+                let id = self.dynamic_map_manager.mob_list[idx].borrow().id;
+                godot_print!("Mob {} damaged: {}", id, damage);
+                self.dynamic_map_manager.mob_list[idx].borrow_mut().hp -= damage;
+                if self.dynamic_map_manager.mob_list[idx].borrow().hp <= 0 {
                     self.dynamic_map_manager.mob_list.remove(idx);
+                    self.dynamic_map_manager.defeated_mob_id.push(id);
+                    godot_print!("Mob {} defeated.", id);
                 }
             }
         }
@@ -284,10 +296,12 @@ impl GameMaster {
     // TODO: もっと複雑なAIを実装する
     fn decideMobAction(&mut self) {
         let mut mob_next_positions = vec![];
+        self.mob_attack_info.clear();
 
-        for mob in &mut self.dynamic_map_manager.mob_list {
+        for mob_rc in &mut self.dynamic_map_manager.mob_list {
             // TODO: 同じ部屋に入ったモブだけがアクティブになるようにする
 
+            let mut mob = mob_rc.borrow_mut();
             // プレイヤーの位置との距離を計算
             let (px, py) = self.dynamic_map_manager.player.position;
             let (mx, my) = mob.position;
@@ -345,19 +359,20 @@ impl GameMaster {
                 }
                 // static_map上で空きがあれば移動候補に入れる
                 if self.static_map_manager.dungeon_map_2d[next_position.0 as usize][next_position.1 as usize] == 0 {
-                    mob_next_positions.push((mob.mob_id, next_position));
+                    mob_next_positions.push((mob.id, next_position));
                 }
             }
         }
 
-        for (mob_id, next_position) in &mob_next_positions {
+        for (id, next_position) in &mob_next_positions {
             // mob_listの中のmobを全部読みだして
-            // mob_idが一致するものは自分なので一度無視
+            // mob.idが一致するものは自分なので一度無視
             // それ以外のmobは、next_positionと一致しないかどうかを確認
             // 一致するものがあれば移動しない
             let mut can_move = true;
-            for mob in &self.dynamic_map_manager.mob_list {
-                if mob.mob_id == *mob_id {
+            for mob_rc in &self.dynamic_map_manager.mob_list {
+                let mob = mob_rc.borrow_mut();
+                if mob.id == *id {
                     continue;
                 }
                 if mob.position == *next_position {
@@ -366,8 +381,9 @@ impl GameMaster {
                 }
             }
             if can_move {
-                for mob in &mut self.dynamic_map_manager.mob_list {
-                    if mob.mob_id == *mob_id {
+                for mob_rc in &mut self.dynamic_map_manager.mob_list {
+                    let mut mob = mob_rc.borrow_mut();
+                    if mob.id == *id {
                         mob.position = *next_position;
                         break;
                     }
@@ -426,9 +442,21 @@ impl GameMaster {
         // モブのHP<=0でそのモブは削除
         // プレイヤーがアイテムを拾った場合、そのアイテムはマップ上からは削除
         // etc...
+        match self.dynamic_map_manager.player.direction {
+            Direction::Up => godot_print!("Player Direcction: up"),
+            Direction::UpRight => godot_print!("Player Direcction: up right"),
+            Direction::Right => godot_print!("Player Direcction: right"),
+            Direction::DownRight => godot_print!("Player Direcction: down right"),
+            Direction::Down => godot_print!("Player Direcction: down"),
+            Direction::DownLeft => godot_print!("Player Direcction: down left"),
+            Direction::Left => godot_print!("Player Direcction: left"),
+            Direction::UpLeft => godot_print!("Player Direcction: up left"),
+            _ => godot_print!("Player Direcction: up"),
+        }
         godot_print!("Player HP: {}", self.dynamic_map_manager.player.hp);
-        for mob in &self.dynamic_map_manager.mob_list {
-            godot_print!("Mob HP: {}", mob.hp);
+        for mob_rc in &self.dynamic_map_manager.mob_list {
+            let mob = mob_rc.borrow();
+            godot_print!("Mob {} HP: {}", mob.id, mob.hp);
         }
     }
 
@@ -485,7 +513,8 @@ impl GameMaster {
     #[func]
     fn get_mob_positions(&self) -> Array<Vector2i> {
         let mut positions = array![];
-        for mob in &self.dynamic_map_manager.mob_list {
+        for mob_rc in &self.dynamic_map_manager.mob_list {
+            let mob = mob_rc.borrow();
             positions.push(Vector2i::new(mob.position.0, mob.position.1));
         }
         positions
@@ -495,8 +524,19 @@ impl GameMaster {
     #[func]
     fn get_mob_ids(&self) -> Array<i32> {
         let mut ids = array![];
-        for mob in &self.dynamic_map_manager.mob_list {
-            ids.push(mob.mob_id);
+        for mob_rc in &self.dynamic_map_manager.mob_list {
+            let mob = mob_rc.borrow();
+            ids.push(mob.id);
+        }
+        ids
+    }
+
+    // このターンに倒された敵のIDを取得
+    #[func]
+    fn get_defeated_mob_ids(&self) -> Array<i32> {
+        let mut ids = array![];
+        for id in &self.dynamic_map_manager.defeated_mob_id {
+            ids.push(*id);
         }
         ids
     }

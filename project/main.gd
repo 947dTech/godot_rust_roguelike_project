@@ -105,33 +105,37 @@ func _process(delta):
 		if Input.is_action_pressed("move_up"):
 			# (local_x, local_y) をそのままつかう
 			# 俯瞰
-			#direction.y -= 1
+			direction.y -= 1
 			# FPS
-			direction.x += local_x
-			direction.y += local_y
+			#direction.x += local_x
+			#direction.y += local_y
+			player_direction = 0
 			is_input = true
 			is_move = true
 		if Input.is_action_pressed("move_left"):
 			# (local_y, -local_x) をつかう
-			#direction.x -= 1
-			direction.x += local_y
-			direction.y -= local_x
+			direction.x -= 1
+			#direction.x += local_y
+			#direction.y -= local_x
+			player_direction = 6
 			is_input = true
 			is_move = true			
 		if Input.is_action_pressed("move_down"):
 			# (-local_x, -local_y) をつかう
-			#direction.y += 1
-			direction.x -= local_x
-			direction.y -= local_y
+			direction.y += 1
+			#direction.x -= local_x
+			#direction.y -= local_y
+			player_direction = 4
 			is_input = true
 			is_move = true			
 		if Input.is_action_pressed("move_right"):
 			# (-local_y, local_x) をつかう
-			#direction.x += 1
-			direction.x -= local_y
-			direction.y += local_x
+			direction.x += 1
+			#direction.x -= local_y
+			#direction.y += local_x
+			player_direction = 2
 			is_input = true
-			is_move = true			
+			is_move = true
 		if Input.is_action_pressed("rotate_left"):
 			player_direction = (player_direction + 3) % 4
 			orientation = 1
@@ -168,7 +172,19 @@ func _process(delta):
 			elif is_action:
 				# プレイヤーがターンを消費する行動を行う場合
 				# 今回はattackのみ
+				player.set_action(0)
 				gamemaster.process()
+				# この結果、倒されたmobがいる場合はそのmobを退場させる。
+				var defeated_ids = gamemaster.get_defeated_mob_ids()
+				for id in defeated_ids:
+					#print("defated mob id: ", id)
+					for mob_idx in range(len(mob_list)):
+						var mob = mob_list[mob_idx]
+						#print("  mob[" , mob_idx, "] id: ", mob.mob_id)
+						if mob.mob_id == id:
+							mob.queue_free()
+							mob_list.remove_at(mob_idx)
+							break
 				# godot側でアニメーションを実行させる。
 				process_mob_animation()
 			else:

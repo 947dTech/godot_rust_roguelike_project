@@ -1,7 +1,7 @@
 use crate::player::Direction;
 
 pub struct GameMob {
-    pub mob_id: i32,
+    pub id: i32,
     pub position: (i32, i32),
     pub direction: Direction,
     pub hp: i32,
@@ -10,9 +10,9 @@ pub struct GameMob {
 }
 
 impl GameMob {
-    pub fn new(x: i32, y: i32) -> Self {
+    pub fn new(id: i32, x: i32, y: i32) -> Self {
         Self {
-            mob_id: 0,
+            id: id,
             position: (x, y),
             direction: Direction::Up,
             hp: 10,

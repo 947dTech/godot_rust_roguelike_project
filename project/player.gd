@@ -14,6 +14,10 @@ var rotation_down = Quaternion(0, 1, 0, 0)
 var rotation_left = Quaternion(0, sqrt(2.0), 0, sqrt(2.0))
 var rotation_right = Quaternion(0, sqrt(2.0), 0, -sqrt(2.0))
 
+var play_action_anim: bool = false
+var action_cnt: int = 0
+var action_frames: int = 60
+
 func init_position(pos):
 	target_pos = pos
 	transform.origin = pos
@@ -27,6 +31,10 @@ func set_next_rotation(dir):
 	current_rotation = 0.0
 	target_rotation = PI/2 * dir
 	current_direction = (current_direction + dir + 4) % 4
+
+func set_action(action_type):
+	play_action_anim = true
+	action_cnt = 0
 
 func _physics_process(delta):
 	# TODO: アニメーションの種類について
@@ -99,16 +107,26 @@ func _physics_process(delta):
 		velocity = Vector3.ZERO
 		transform.origin = target_pos
 		if current_direction == 0:
-			transform.basis = Basis(rotation_up)
-		elif current_direction == 1:
-			transform.basis = Basis(rotation_left)
+			get_node("Pivot").transform.basis = Basis(rotation_up)
+		elif current_direction == 6:
+			get_node("Pivot").transform.basis = Basis(rotation_left)
+		elif current_direction == 4:
+			get_node("Pivot").transform.basis = Basis(rotation_down)
 		elif current_direction == 2:
-			transform.basis = Basis(rotation_down)
-		elif current_direction == 1:
-			transform.basis = Basis(rotation_right)
+			get_node("Pivot").transform.basis = Basis(rotation_right)
 		#print(transform.origin)  # = 並進ベクトル
 		#print(transform.basis)  # = 回転行列
 		current_rotation = 0.0
 		target_rotation = 0.0
 		anim_playing = false
+	
+	# 攻撃などのモーションを再生する場合
+	if play_action_anim:
+		anim_playing = true
+		action_cnt += 1
+		if action_cnt >= action_frames:
+			anim_playing = false
+			play_action_anim = false
+			action_cnt = 0
+	
 	move_and_slide()

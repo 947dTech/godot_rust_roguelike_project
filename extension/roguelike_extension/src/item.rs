@@ -30,8 +30,9 @@ pub enum SideEffect {
 }
 
 
-// ドロップしているアイテムを管理するクラス
+// アイテムに座標系と管理IDを割り付けたクラス
 pub struct DroppedItem {
+    pub id: i32,
     pub position: (i32, i32),
     pub item: GameItem,
 }
