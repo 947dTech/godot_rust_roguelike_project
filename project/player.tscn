@@ -1,6 +1,7 @@
-[gd_scene load_steps=5 format=3 uid="uid://dlu4qedg0ei40"]
+[gd_scene load_steps=6 format=3 uid="uid://dlu4qedg0ei40"]
 
 [ext_resource type="Script" path="res://player.gd" id="1_yl56w"]
+[ext_resource type="PackedScene" uid="uid://bsm04188mg0yg" path="res://models/player.glb" id="2_wy6pw"]
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_xqlak"]
 height = 0.8
@@ -27,8 +28,12 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="Pivot"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+visible = false
 mesh = SubResource("CylinderMesh_qktcx")
 skeleton = NodePath("../..")
+
+[node name="player" parent="Pivot" instance=ExtResource("2_wy6pw")]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0, 0)
 
 [node name="TPCamera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1.19249e-08, 1, 0, -1, 1.19249e-08, 0, 10, 0)

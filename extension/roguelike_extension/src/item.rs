@@ -1,3 +1,6 @@
+use std::rc::Rc;
+use std::cell::RefCell;
+
 // アイテム管理用クラス
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum GameItem {
@@ -34,5 +37,5 @@ pub enum SideEffect {
 pub struct DroppedItem {
     pub id: i32,
     pub position: (i32, i32),
-    pub item: GameItem,
+    pub item: RefCell<GameItem>,
 }

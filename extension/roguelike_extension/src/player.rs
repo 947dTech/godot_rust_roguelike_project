@@ -1,6 +1,9 @@
 use crate::item::GameItem;
 use crate::item::SideEffect;
 
+use std::rc::Rc;
+use std::cell::RefCell;
+
 pub enum Direction {
     Up,
     UpRight,
@@ -19,7 +22,7 @@ pub struct GamePlayer {
     pub hp: i32,
     pub attack: i32,
     pub defense: i32,
-    pub items: Vec<GameItem>,
+    pub items: Vec<RefCell<GameItem>>,
     pub active_item_index: usize,
 }
 
@@ -45,15 +48,15 @@ impl GamePlayer {
         self.items.clear();
         self.items.reserve(length);
         for _ in 0..length {
-            self.items.push(GameItem::Null);
+            self.items.push(RefCell::new(GameItem::Null));
         }
     }
 
     // アイテムを追加する、空きがなければ失敗する。
-    pub fn add_item(&mut self, item: GameItem) -> bool {
+    pub fn add_item(&mut self, item: &RefCell<GameItem>) -> bool {
         for i in 0..self.items.len() {
-            if self.items[i] == GameItem::Null {
-                self.items[i] = item;
+            if *self.items[i].borrow() == GameItem::Null {
+                self.items[i] = item.clone();
                 return true;
             }
         }
@@ -74,17 +77,21 @@ impl GamePlayer {
         // 使ったけど失敗したということを通知したい
         let mut result = SideEffect::Fault;
         if self.active_item_index < self.items.len() {
+            let mut item_used = false;
             // アイテムの種類によって処理を変える
-            match self.items[self.active_item_index] {
+            match *self.items[self.active_item_index].borrow() {
                 GameItem::HealthPotion(potion) => {
                     self.hp += potion.heal_amount;
                     if self.hp > self.max_hp {
                         self.hp = self.max_hp;
                     }
-                    self.items[self.active_item_index] = GameItem::Null;
                     result = SideEffect::None;
+                    item_used = true;
                 }
                 _ => {}
+            }
+            if item_used {
+                self.items[self.active_item_index] = RefCell::new(GameItem::Null);
             }
         }
         result
@@ -95,7 +102,7 @@ impl GamePlayer {
         let (mut x, mut y) = self.position;
         let mut damage = self.attack;
         if self.active_item_index < self.items.len() {
-            match self.items[self.active_item_index] {
+            match *self.items[self.active_item_index].borrow() {
                 GameItem::Sword(sword) => {
                     damage += sword.attack_bonus;
                 }

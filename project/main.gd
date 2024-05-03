@@ -17,6 +17,7 @@ var player_direction: int
 @export var item_scene: PackedScene
 @export var mob_scene: PackedScene
 
+var item_list: Array
 var mob_list: Array
 
 # Called when the node enters the scene tree for the first time.
@@ -44,12 +45,18 @@ func _ready():
 	
 	# 落ちているアイテムの情報を取得
 	var item_positions = gamemaster.get_dropped_item_positions()
-	for pos in item_positions:
-		print("Item pos: ", pos)
+	var item_ids = gamemaster.get_dropped_item_ids()
+	# TODO: item_idを取得
+	for i in range(len(item_positions)):
+		var pos = item_positions[i]
+		var item_id = item_ids[i]
+		print("Item ", item_id, " pos: ", pos)
 		var item_inst = item_scene.instantiate()
+		item_inst.item_id = item_id
 		item_inst.transform = item_inst.transform.translated(
 			get_node("Map").grid_to_geometry(pos))
 		add_child(item_inst)
+		item_list.append(item_inst)
 
 	# 敵の情報を取得
 	var mob_positions = gamemaster.get_mob_positions()
@@ -57,7 +64,7 @@ func _ready():
 	for i in range(len(mob_positions)):
 		var pos = mob_positions[i]
 		var mob_id = mob_ids[i]
-		print("Mob pos: ", pos)
+		print("Mob ", mob_id, " pos: ", pos)
 		var mob_inst = mob_scene.instantiate()
 		mob_inst.mob_id = mob_id
 		mob_inst.current_position_2d = pos
@@ -83,6 +90,34 @@ func process_mob_animation():
 						get_node("Map").grid_to_geometry(pos))
 					mob_inst.current_position_2d = pos
 				break;
+
+# アイテムが拾われる可能性がある行動が起きたとき、アイテムを削除するかどうか
+func remove_dropped_items():
+	var dropped_item_removed_ids = gamemaster.get_dropped_item_removed_ids()
+	for id in dropped_item_removed_ids:
+		for item_idx in range(len(item_list)):
+			var item = item_list[item_idx]
+			if item.item_id == id:
+				item.queue_free()
+				item_list.remove_at(item_idx)
+				break;
+
+# アイテムが落とされる可能性がある行動が起きたとき、アイテムを追加するかどうか
+func add_dropped_items():
+	var dropped_item_added_ids = gamemaster.get_dropped_item_added_ids()
+	var dropped_item_ids = gamemaster.get_dropped_item_ids()
+	var dropped_item_pos = gamemaster.get_dropped_item_positions()
+	for item_id in dropped_item_added_ids:
+		for item_idx in range(len(dropped_item_ids)):
+			if dropped_item_ids[item_idx] == item_id:
+				var pos = dropped_item_pos[item_idx]
+				var item_inst = item_scene.instantiate()
+				item_inst.item_id = item_id
+				item_inst.transform = item_inst.transform.translated(
+					get_node("Map").grid_to_geometry(pos))
+				add_child(item_inst)
+				item_list.append(item_inst)
+				break
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
 func _process(delta):
@@ -167,6 +202,9 @@ func _process(delta):
 					# アニメーションを実行させる。
 					process_mob_animation()
 					
+					# 拾われたアイテムの処理
+					remove_dropped_items()
+	
 				else:
 					print("position ", next_player_position, " is invalid, unable to move.")
 			elif is_action:
@@ -187,6 +225,9 @@ func _process(delta):
 							break
 				# godot側でアニメーションを実行させる。
 				process_mob_animation()
+				
+				# 落とされたアイテムの処理
+				add_dropped_items()
 			else:
 				# 回転移動の場合、ターンは消費されない
 				gamemaster.player_turn(player_direction)

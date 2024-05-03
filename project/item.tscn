@@ -1,4 +1,7 @@
-[gd_scene load_steps=4 format=3 uid="uid://ci3ub0ptq0q4y"]
+[gd_scene load_steps=6 format=3 uid="uid://ci3ub0ptq0q4y"]
+
+[ext_resource type="Script" path="res://item.gd" id="1_601ej"]
+[ext_resource type="PackedScene" uid="uid://dkwx8a5717jf2" path="res://models/dropped_item.glb" id="1_ukbkk"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_q7mvx"]
 albedo_color = Color(0.647059, 0.635294, 0, 1)
@@ -14,11 +17,15 @@ radius = 0.4
 [node name="Item" type="CharacterBody3D"]
 collision_layer = 2
 collision_mask = 2
+script = ExtResource("1_601ej")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+visible = false
 mesh = SubResource("BoxMesh_7jddv")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
 shape = SubResource("CylinderShape3D_y03x7")
+
+[node name="dropped_item" parent="." instance=ExtResource("1_ukbkk")]

@@ -1,6 +1,7 @@
-[gd_scene load_steps=5 format=3 uid="uid://dbclpmq3j38f0"]
+[gd_scene load_steps=6 format=3 uid="uid://dbclpmq3j38f0"]
 
 [ext_resource type="Script" path="res://mob.gd" id="1_d4wsr"]
+[ext_resource type="PackedScene" uid="uid://dncwbg4662mxe" path="res://models/mob.glb" id="2_uwle0"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_p0a8q"]
 albedo_color = Color(1, 0, 1, 1)
@@ -20,7 +21,11 @@ script = ExtResource("1_d4wsr")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+visible = false
 mesh = SubResource("CylinderMesh_x20ux")
+
+[node name="mob" parent="." instance=ExtResource("2_uwle0")]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0, 0)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)

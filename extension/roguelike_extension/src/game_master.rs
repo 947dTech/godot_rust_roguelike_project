@@ -30,6 +30,10 @@ pub struct GameMaster {
     mob_attack_info: Vec<(i32, i32, i32)>,
     mob_side_effect_info: Vec<SideEffect>,
 
+    current_item_id_max: i32,
+    dropped_item_added_ids: Vec<i32>,
+    dropped_item_removed_ids: Vec<i32>,
+
     base: Base<Node3D>,
 }
 
@@ -44,6 +48,9 @@ impl INode3D for GameMaster {
             player_side_effect_info: vec![],
             mob_attack_info: vec![],
             mob_side_effect_info: vec![],
+            dropped_item_added_ids: vec![],
+            dropped_item_removed_ids: vec![],
+            current_item_id_max: 0,
             static_map_manager: StaticMapManager::new(100, 100),
             dynamic_map_manager: DynamicMapManager::new(),
             base,
@@ -69,6 +76,9 @@ impl GameMaster {
                 player_side_effect_info: vec![],
                 mob_attack_info: vec![],
                 mob_side_effect_info: vec![],
+                dropped_item_added_ids: vec![],
+                dropped_item_removed_ids: vec![],
+                current_item_id_max: 0,
                 static_map_manager: StaticMapManager::new(100, 100),
                 dynamic_map_manager: DynamicMapManager::new(),
                 base,
@@ -118,15 +128,16 @@ impl GameMaster {
                     let ditem = DroppedItem {
                         id: item_count as i32,
                         position: (x, y),
-                        item: item
+                        item: RefCell::new(item)
                     };
-                    self.dynamic_map_manager.item_list.push(Rc::new(ditem));
+                    self.dynamic_map_manager.item_list.push(RefCell::new(ditem));
                     item_count += 1;
                 }
                 // 無限ループを避け、かつアイテム数にランダム性を持たせるため厳密にmaxを狙わない
             }
         }
         godot_print!("{} items generated (max: {})", item_count, item_max);
+        self.current_item_id_max = item_count as i32;
 
         // 敵の初期位置を設定
         let mob_max = 10;
@@ -178,7 +189,7 @@ impl GameMaster {
         }
     }
 
-    // playerに向きを指示
+    // playerに向きを指示、ターンを消費しない
     #[func]
     fn player_turn(&mut self, direction: i32) {
         let player_dir = match direction {
@@ -195,10 +206,14 @@ impl GameMaster {
         self.dynamic_map_manager.player.direction = player_dir;
     }
 
-    // playerに移動を指示
+    // playerに移動を指示、ターンを消費する
     #[func]
     fn player_move(&mut self, next_position: Vector2i) -> bool {
         let mut result = false;
+        // ターンの最初にアイテムの差分をクリア
+        self.dropped_item_added_ids.clear();
+        self.dropped_item_removed_ids.clear();
+
         // まず移動先がstatic_map上でfreeであることを確認
         if (self.static_map_manager.dungeon_map_2d[next_position.x as usize][next_position.y as usize] == 0) {
             // 次に移動先にmobがいないことを確認
@@ -209,17 +224,45 @@ impl GameMaster {
                     break;
                 }
             }
+            // 移動先にmobがいない場合のみ移動、移動できない場合は移動できなかったことを通知
             if !mob_exist {
                 self.dynamic_map_manager.player.position = (next_position.x, next_position.y);
+                // TODO: プレイヤーが移動した先にアイテムがある場合、それを自動的に拾うかどうか
+                //  たとえば、特定のキーと同時に移動をした場合拾わないという選択もありうる。
+                //  また、アイテム所持上限に達している場合は拾えない。
+                
+                // まず、移動先にアイテムがあるかどうかを確認
+                let mut item_idx = None;
+                for (idx, item_rc) in self.dynamic_map_manager.item_list.iter().enumerate() {
+                    let item = item_rc.borrow();
+                    if item.position == (next_position.x, next_position.y) {
+                        item_idx = Some(idx);
+                        break;
+                    }
+                }
+                // 移動先にアイテムがあった場合
+                if let Some(idx) = item_idx {
+                    // アイテム所持上限に達していないことを確認
+                    let ditem_rc = &self.dynamic_map_manager.item_list[idx];
+                    let got_item = self.dynamic_map_manager.player.add_item(&ditem_rc.borrow().item);
+                    if got_item {
+                        // 拾った場合、アイテムリストから削除して、削除したことを削除リストに追加
+                        self.dropped_item_removed_ids.push(ditem_rc.borrow().id);
+                        self.dynamic_map_manager.item_list.remove(idx);
+                    }
+                }
                 result = true;
             }
         }
         result
     }
 
-    // playerに攻撃を指示
+    // playerに攻撃を指示、ターンを消費する
     #[func]
     fn player_attack(&mut self) {
+        // ターンの最初にアイテムの差分をクリア
+        self.dropped_item_added_ids.clear();
+        self.dropped_item_removed_ids.clear();
         self.player_attack_info.clear();
         self.dynamic_map_manager.player.attack(&mut self.player_attack_info);
         // プレイヤーから帰ってきた攻撃情報を保存
@@ -228,24 +271,29 @@ impl GameMaster {
         }
     }
 
-    // playerにアイテムを拾うよう指示
+    // playerにアイテムを拾うよう指示、ターンを消費する
     #[func]
     fn player_pickup_item(&mut self) {
+        // ターンの最初にアイテムの差分をクリア
+        self.dropped_item_added_ids.clear();
+        self.dropped_item_removed_ids.clear();
         let (x, y) = self.dynamic_map_manager.player.position;
         let mut item_idx = None;
         for (idx, item) in self.dynamic_map_manager.item_list.iter().enumerate() {
-            if item.position == (x, y) {
+            if item.borrow().position == (x, y) {
                 item_idx = Some(idx);
                 break;
             }
         }
+        // アイテムを拾った場合の処理
         if let Some(idx) = item_idx {
             let item = self.dynamic_map_manager.item_list.remove(idx);
-            self.dynamic_map_manager.player.add_item(item.item);
+            self.dropped_item_removed_ids.push(item.borrow().id);
+            self.dynamic_map_manager.player.add_item(&item.borrow().item);
         }
     }
 
-    // playerにアイテムを使うよう指示
+    // playerにアイテムを使うよう指示、ターンを消費する
     #[func]
     fn player_use_item(&mut self, item_idx: i32) {
         self.player_side_effect_info.clear();
@@ -283,7 +331,23 @@ impl GameMaster {
                 let id = self.dynamic_map_manager.mob_list[idx].borrow().id;
                 godot_print!("Mob {} damaged: {}", id, damage);
                 self.dynamic_map_manager.mob_list[idx].borrow_mut().hp -= damage;
+                // モブのHPが0以下になった場合、リストから削除
+                // TODO: モブを倒したら一定確率でアイテムをドロップするようにする
                 if self.dynamic_map_manager.mob_list[idx].borrow().hp <= 0 {
+                    // モブの最終位置を確認
+                    let (x, y) = self.dynamic_map_manager.mob_list[idx].borrow().position;
+                    // モブの最終位置にアイテムをドロップ
+                    let item = GameItem::HealthPotion(HealthPotion {heal_amount: 10});
+                    let item_id = self.current_item_id_max;
+                    let ditem = DroppedItem {
+                        id: item_id,
+                        position: (x, y),
+                        item: RefCell::new(item)
+                    };
+                    self.dynamic_map_manager.item_list.push(RefCell::new(ditem));
+                    self.current_item_id_max += 1;
+                    self.dropped_item_added_ids.push(item_id);
+                    // モブをリストから削除
                     self.dynamic_map_manager.mob_list.remove(idx);
                     self.dynamic_map_manager.defeated_mob_id.push(id);
                     godot_print!("Mob {} defeated.", id);
@@ -485,8 +549,8 @@ impl GameMaster {
     #[func]
     fn give_health_potion_to_player(&mut self) {
         godot_print!("Give Health Potion to Player");
-        let potion = GameItem::HealthPotion(HealthPotion {heal_amount: 10});
-        self.dynamic_map_manager.player.add_item(potion);
+        let potion = RefCell::new(GameItem::HealthPotion(HealthPotion {heal_amount: 10}));
+        self.dynamic_map_manager.player.add_item(&potion);
         self.print_player_items();
         self.print_player_status();
         godot_print!("Select item index 0");
@@ -499,13 +563,46 @@ impl GameMaster {
     }
 
     // 落ちているアイテムの情報を取得
+    // 落ちているアイテムの位置を取得
     #[func]
     fn get_dropped_item_positions(&self) -> Array<Vector2i> {
         let mut positions = array![];
-        for item in &self.dynamic_map_manager.item_list {
+        for item_rc in &self.dynamic_map_manager.item_list {
+            let item = item_rc.borrow();
             positions.push(Vector2i::new(item.position.0, item.position.1));
         }
         positions
+    }
+
+    // 落ちているアイテムのIDを取得
+    #[func]
+    fn get_dropped_item_ids(&self) -> Array<i32> {
+        let mut ids = array![];
+        for item_rc in &self.dynamic_map_manager.item_list {
+            let item = item_rc.borrow();
+            ids.push(item.id);
+        }
+        ids
+    }
+
+    // 拾われたアイテムのIDを取得
+    #[func]
+    fn get_dropped_item_removed_ids(&self) -> Array<i32> {
+        let mut ids = array![];
+        for id in &self.dropped_item_removed_ids {
+            ids.push(*id);
+        }
+        ids
+    }
+
+    // 落とされたアイテムのIDを取得
+    #[func]
+    fn get_dropped_item_added_ids(&self) -> Array<i32> {
+        let mut ids = array![];
+        for id in &self.dropped_item_added_ids {
+            ids.push(*id);
+        }
+        ids
     }
 
     // 敵の情報を取得する関数群
