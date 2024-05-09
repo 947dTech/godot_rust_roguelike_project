@@ -3,6 +3,10 @@
 [ext_resource type="Script" path="res://mob.gd" id="1_d4wsr"]
 [ext_resource type="PackedScene" uid="uid://dncwbg4662mxe" path="res://models/mob.glb" id="2_uwle0"]
 
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_ols4v"]
+height = 0.8
+radius = 0.4
+
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_p0a8q"]
 albedo_color = Color(1, 0, 1, 1)
 
@@ -10,23 +14,22 @@ albedo_color = Color(1, 0, 1, 1)
 material = SubResource("StandardMaterial3D_p0a8q")
 height = 1.0
 
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_ols4v"]
-height = 0.8
-radius = 0.4
-
 [node name="Mob" type="CharacterBody3D"]
 collision_layer = 4
 collision_mask = 4
 script = ExtResource("1_d4wsr")
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
-visible = false
-mesh = SubResource("CylinderMesh_x20ux")
-
-[node name="mob" parent="." instance=ExtResource("2_uwle0")]
-transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0, 0)
-
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
 shape = SubResource("CylinderShape3D_ols4v")
+
+[node name="Pivot" type="Node3D" parent="."]
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="Pivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+visible = false
+mesh = SubResource("CylinderMesh_x20ux")
+skeleton = NodePath("../..")
+
+[node name="mob" parent="Pivot" instance=ExtResource("2_uwle0")]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0, 0)

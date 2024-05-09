@@ -15,6 +15,8 @@ material = SubResource("StandardMaterial3D_amjci")
 height = 1.0
 
 [node name="Player" type="CharacterBody3D"]
+axis_lock_angular_x = true
+axis_lock_angular_z = true
 script = ExtResource("1_yl56w")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]

@@ -32,6 +32,16 @@ func set_next_rotation(dir):
 	current_rotation = 0.0
 	target_rotation = PI/2 * dir
 	current_direction = (current_direction + dir + 4) % 4
+	# 回転移動は即時反映とする。
+	get_node("Pivot").transform = get_node("Pivot").transform.rotated(Vector3(0.0, 1.0, 0.0), target_rotation)
+
+func set_next_abs_rotation(dir):
+	current_direction = dir
+	# 回転移動は即時反映とする。
+	# current_directionの値に応じた回転行列を作る	
+	var identity_transform = Transform3D()
+	target_rotation = -PI/4 * current_direction
+	get_node("Pivot").transform = identity_transform.rotated(Vector3(0.0, 1.0, 0.0), target_rotation)
 
 func _physics_process(delta):
 	# 目標位置に対してスライドするアニメーションを再生するだけ
@@ -76,31 +86,31 @@ func _physics_process(delta):
 		
 		anim_playing = true
 		
-	elif absf(target_rotation - current_rotation) > 0.01:
-		# 回転移動
-		var current_pos = transform.origin
-		var delta_r = target_rotation * angular_speed * delta
-		current_rotation = current_rotation + delta_r
-		get_node("Pivot").transform = get_node("Pivot").transform.rotated(Vector3(0.0, 1.0, 0.0), delta_r)
-		transform.origin = current_pos
-		#print("target rotation: ", target_rotation)
-		#print("current rotation: ", current_rotation)
-		#print(transform.basis)
-		#print(transform.origin)
-
-		anim_playing = true
+	#elif absf(target_rotation - current_rotation) > 0.01:
+		## 回転移動
+		#var current_pos = transform.origin
+		#var delta_r = target_rotation * angular_speed * delta
+		#current_rotation = current_rotation + delta_r
+		#get_node("Pivot").transform = get_node("Pivot").transform.rotated(Vector3(0.0, 1.0, 0.0), delta_r)
+		#transform.origin = current_pos
+		##print("target rotation: ", target_rotation)
+		##print("current rotation: ", current_rotation)
+		##print(transform.basis)
+		##print(transform.origin)
+#
+		#anim_playing = true
 	else:
 		# 目標の姿勢に十分到達している場合は、目標姿勢にワープしてvelocityを0にする。
 		velocity = Vector3.ZERO
 		transform.origin = target_pos
-		if current_direction == 0:
-			transform.basis = Basis(rotation_up)
-		elif current_direction == 1:
-			transform.basis = Basis(rotation_left)
-		elif current_direction == 2:
-			transform.basis = Basis(rotation_down)
-		elif current_direction == 1:
-			transform.basis = Basis(rotation_right)
+		#if current_direction == 0:
+			#transform.basis = Basis(rotation_up)
+		#elif current_direction == 1:
+			#transform.basis = Basis(rotation_left)
+		#elif current_direction == 2:
+			#transform.basis = Basis(rotation_down)
+		#elif current_direction == 1:
+			#transform.basis = Basis(rotation_right)
 		#print(transform.origin)  # = 並進ベクトル
 		#print(transform.basis)  # = 回転行列
 		current_rotation = 0.0

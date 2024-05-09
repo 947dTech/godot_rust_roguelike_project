@@ -19,6 +19,7 @@ var player_direction: int
 
 var item_list: Array
 var mob_list: Array
+var ui_label
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
@@ -75,17 +76,25 @@ func _ready():
 
 	# カメラを切り替え
 	get_node("Player/TPCamera3D").make_current()
+	
+	# UIに文字を表示
+	ui_label = get_node("Control/ColorRect/Label")
+	ui_label.text = "ゲームスタート"
 
 # モブのアニメーションを実行
 func process_mob_animation():
 	var mob_positions = gamemaster.get_mob_positions()
 	var mob_ids = gamemaster.get_mob_ids()
+	var mob_directions = gamemaster.get_mob_directions()
 	for i in range(len(mob_positions)):
 		var pos = mob_positions[i]
 		var mob_id = mob_ids[i]
+		var mob_dir = mob_directions[i]
 		for mob_inst in mob_list:
 			if mob_inst.mob_id == mob_id:
+				mob_inst.set_next_abs_rotation(mob_dir)	
 				if mob_inst.current_position_2d != pos:
+					print("mob ", mob_id, " moved from ", mob_inst.current_position_2d, " to ", pos)
 					mob_inst.set_next_position(
 						get_node("Map").grid_to_geometry(pos))
 					mob_inst.current_position_2d = pos
@@ -154,7 +163,7 @@ func _process(delta):
 			#direction.y -= local_x
 			player_direction = 6
 			is_input = true
-			is_move = true			
+			is_move = true
 		if Input.is_action_pressed("move_down"):
 			# (-local_x, -local_y) をつかう
 			direction.y += 1
@@ -162,7 +171,7 @@ func _process(delta):
 			#direction.y -= local_y
 			player_direction = 4
 			is_input = true
-			is_move = true			
+			is_move = true
 		if Input.is_action_pressed("move_right"):
 			# (-local_y, local_x) をつかう
 			direction.x += 1
@@ -171,26 +180,28 @@ func _process(delta):
 			player_direction = 2
 			is_input = true
 			is_move = true
-		if Input.is_action_pressed("rotate_left"):
-			player_direction = (player_direction + 3) % 4
+		if Input.is_action_just_pressed("rotate_left"):
+			player_direction = (player_direction + 7) % 8
 			orientation = 1
 			is_input = true
-		if Input.is_action_pressed("rotate_right"):
-			player_direction = (player_direction + 1) % 4	
+		if Input.is_action_just_pressed("rotate_right"):
+			player_direction = (player_direction + 1) % 8	
 			orientation = -1
 			is_input = true
-		if Input.is_action_pressed("apply_button"):
+		if Input.is_action_just_pressed("apply_button"):
 			gamemaster.player_attack();
 			is_input = true
 			is_action = true
 
 		if is_input:
 			if is_move:
-				# 移動を指示された場合	
+				# 移動を指示された場合
+				gamemaster.clear_message()
 				# GameMasterに問い合わせて移動可能かどうかを決める。
 				# 平行移動
 				var next_player_position = player_position + direction
 				gamemaster.player_turn(player_direction)
+				player.set_next_abs_rotation(player_direction)
 				# mapに目標位置に移動可能かどうか問い合わせる
 				if gamemaster.player_move(next_player_position):
 					# 移動可能だった場合、gamemaster内部の状態はすでに移動済みである。
@@ -204,11 +215,17 @@ func _process(delta):
 					
 					# 拾われたアイテムの処理
 					remove_dropped_items()
+					
+					# メッセージの表示
+					ui_label.text = ""
+					for msg_str in gamemaster.message:
+						ui_label.text += (msg_str + "\n")
 	
 				else:
 					print("position ", next_player_position, " is invalid, unable to move.")
 			elif is_action:
 				# プレイヤーがターンを消費する行動を行う場合
+				gamemaster.clear_message()
 				# 今回はattackのみ
 				player.set_action(0)
 				gamemaster.process()
@@ -228,6 +245,12 @@ func _process(delta):
 				
 				# 落とされたアイテムの処理
 				add_dropped_items()
+				
+				# メッセージの表示
+				ui_label.text = ""
+				for msg_str in gamemaster.message:
+					ui_label.text += (msg_str + "\n")
+				
 			else:
 				# 回転移動の場合、ターンは消費されない
 				gamemaster.player_turn(player_direction)

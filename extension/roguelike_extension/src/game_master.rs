@@ -24,10 +24,13 @@ pub struct GameMaster {
     #[export]
     dungeon_map_1d: Array<i32>,
 
+    #[export]
+    message: Array<GString>,
+
     player_attack_info: Vec<(i32, i32, i32)>,
     player_side_effect_info: Vec<SideEffect>,
 
-    mob_attack_info: Vec<(i32, i32, i32)>,
+    mob_attack_info: Vec<(i32, i32, i32, i32)>,
     mob_side_effect_info: Vec<SideEffect>,
 
     current_item_id_max: i32,
@@ -44,6 +47,7 @@ impl INode3D for GameMaster {
             dungeon_width: 100,
             dungeon_height: 100,
             dungeon_map_1d: Array::new(),
+            message: Array::new(),
             player_attack_info: vec![],
             player_side_effect_info: vec![],
             mob_attack_info: vec![],
@@ -72,6 +76,7 @@ impl GameMaster {
                 dungeon_width: 100,
                 dungeon_height: 100,
                 dungeon_map_1d: Array::new(),
+                message: Array::new(),
                 player_attack_info: vec![],
                 player_side_effect_info: vec![],
                 mob_attack_info: vec![],
@@ -162,6 +167,12 @@ impl GameMaster {
         godot_print!("{} mobs generated (max: {})", mob_count, mob_max);
     }
 
+    // メッセージをクリア、godot側から呼び出される
+    #[func]
+    fn clear_message(&mut self) {
+        self.message.clear();
+    }
+
     // gamemasterはplayerに関する情報をgodotに渡す
     // playerの位置
     #[func]
@@ -249,6 +260,7 @@ impl GameMaster {
                         // 拾った場合、アイテムリストから削除して、削除したことを削除リストに追加
                         self.dropped_item_removed_ids.push(ditem_rc.borrow().id);
                         self.dynamic_map_manager.item_list.remove(idx);
+                        self.message.push("アイテムを拾った。".into());
                     }
                 }
                 result = true;
@@ -318,6 +330,7 @@ impl GameMaster {
     // playerのattack_infoの反映
     fn applyPlayerAttackInfo(&mut self) {
         self.dynamic_map_manager.defeated_mob_id.clear();
+        let mut fumbled = true;
         for (x, y, damage) in &self.player_attack_info {
             // モブの位置と一致するものがあればダメージを与える
             let mut mob_idx = None;
@@ -330,6 +343,7 @@ impl GameMaster {
             if let Some(idx) = mob_idx {
                 let id = self.dynamic_map_manager.mob_list[idx].borrow().id;
                 godot_print!("Mob {} damaged: {}", id, damage);
+                self.message.push(format!("ID{}に{}ダメージを与えた。", id, damage).into());
                 self.dynamic_map_manager.mob_list[idx].borrow_mut().hp -= damage;
                 // モブのHPが0以下になった場合、リストから削除
                 // TODO: モブを倒したら一定確率でアイテムをドロップするようにする
@@ -351,9 +365,17 @@ impl GameMaster {
                     self.dynamic_map_manager.mob_list.remove(idx);
                     self.dynamic_map_manager.defeated_mob_id.push(id);
                     godot_print!("Mob {} defeated.", id);
+                    self.message.push(format!("ID{}を倒した。", id).into());
                 }
+                fumbled = false;
             }
         }
+        // 攻撃を外したらメッセージを表示
+        if fumbled && !self.player_attack_info.is_empty() {
+            godot_print!("Player Attack Fumbled");
+            self.message.push("攻撃が外れた。".into());
+        }
+        self.player_attack_info.clear();
     }
 
     // mobの行動を決定
@@ -402,7 +424,7 @@ impl GameMaster {
                 }
                 mob.attack(&mut attack_info);
                 for (x, y, damage) in &attack_info {
-                    self.mob_attack_info.push((*x, *y, *damage));
+                    self.mob_attack_info.push((*x, *y, *damage, mob.id));
                 }
             } else {
                 // そうでなければプレイヤーの方向に移動
@@ -411,14 +433,18 @@ impl GameMaster {
                 if abs_dx > abs_dy {
                     if dx > 0 {
                         next_position = (mx + 1, my);
+                        mob.direction = Direction::Right;
                     } else {
                         next_position = (mx - 1, my);
+                        mob.direction = Direction::Left;
                     }
                 } else {
                     if dy > 0 {
                         next_position = (mx, my + 1);
+                        mob.direction = Direction::Down;
                     } else {
                         next_position = (mx, my - 1);
+                        mob.direction = Direction::Up;
                     }
                 }
                 // static_map上で空きがあれば移動候補に入れる
@@ -472,16 +498,19 @@ impl GameMaster {
 
     // mobのattack_infoの反映
     fn applyMobAttackInfo(&mut self) {
-        for (x, y, damage) in &self.mob_attack_info {
+        for (x, y, damage, mob_id) in &self.mob_attack_info {
             // プレイヤーの位置と一致するものがあればダメージを与える
             if self.dynamic_map_manager.player.position == (*x, *y) {
+                self.message.push(format!("プレイヤーはID{}から{}ダメージを受けた。", mob_id, damage).into());
                 self.dynamic_map_manager.player.hp -= damage;
                 if self.dynamic_map_manager.player.hp <= 0 {
                     // ゲームオーバー
                     godot_print!("Game Over");
+                    self.message.push("力尽きた。".into());
                 }
             }
         }
+        self.mob_attack_info.clear();
     }
 
     // 1ターンを定義、godot側から進めるかどうかを決めて呼び出す。
@@ -615,6 +644,28 @@ impl GameMaster {
             positions.push(Vector2i::new(mob.position.0, mob.position.1));
         }
         positions
+    }
+
+    // 敵の向きを取得
+    #[func]
+    fn get_mob_directions(&self) -> Array<i32> {
+        let mut directions = array![];
+        for mob_rc in &self.dynamic_map_manager.mob_list {
+            let mob = mob_rc.borrow();
+            let dir = match mob.direction {
+                Direction::Up => 0,
+                Direction::UpRight => 1,
+                Direction::Right => 2,
+                Direction::DownRight => 3,
+                Direction::Down => 4,
+                Direction::DownLeft => 5,
+                Direction::Left => 6,
+                Direction::UpLeft => 7,
+                _ => 0,
+            };
+            directions.push(dir);
+        }
+        directions
     }
 
     // 敵のIDを取得
