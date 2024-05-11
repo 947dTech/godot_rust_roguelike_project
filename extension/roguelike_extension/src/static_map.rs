@@ -1,12 +1,9 @@
-use godot::prelude::*;
-
 use crate::map_generator::{
     generate_dungeon,
     BSPNodeParams,
     Direction,
 };
 
-// Godotと関係ないクラスは頭にGdをつけない。
 pub struct StaticMapManager {
     pub dungeon_width: i32,
     pub dungeon_height: i32,
@@ -62,94 +59,3 @@ impl StaticMapManager {
     }
 }
 
-// GodotのクラスはGdから始まるものとする。
-#[derive(GodotClass)]
-#[class(base=Node3D)]
-pub struct GdStaticMapManager {
-    #[export]
-    dungeon_width: i32,
-    #[export]
-    dungeon_height: i32,
-    #[export]
-    dungeon_map_1d: Array<i32>,
-    static_map_manager: StaticMapManager,
-    base: Base<Node3D>,
-}
-
-#[godot_api]
-impl INode3D for GdStaticMapManager {
-    fn init(base: Base<Node3D>) -> Self {
-        Self {
-            dungeon_width: 100,
-            dungeon_height: 100,
-            dungeon_map_1d: Array::new(),
-            static_map_manager: StaticMapManager::new(100, 100),
-            base,
-        }
-    }
-
-    fn to_string(&self) -> GString {
-        let Self {dungeon_width, dungeon_height, ..} = &self;
-        format!("MapManager(dungeon_width={dungeon_width}, dungeon_height={dungeon_height})").into()
-    }
-}
-
-#[godot_api]
-impl GdStaticMapManager {
-    #[constant]
-    const DEFAULT_DUNGEON_WIDTH: i32 = 100;
-    #[constant]
-    const DEFAULT_DUNGEON_HEIGHT: i32 = 100;
-
-    #[func]
-    fn from_width_height(width: i32, height: i32) -> Gd<Self> {
-        Gd::from_init_fn(|base| {
-            Self {
-                dungeon_width: width,
-                dungeon_height: height,
-                dungeon_map_1d: Array::new(),
-                static_map_manager: StaticMapManager::new(100, 100),
-                base,
-            }
-        })
-    }
-
-    #[func]
-    fn get_tile(&self, x: i32, y: i32) -> i32 {
-        self.dungeon_map_1d.get(
-            (y * self.dungeon_width + x).try_into().unwrap()
-        ).try_into().unwrap()
-    }
-
-    #[func]
-    fn set_tile(&mut self, x: i32, y: i32, tile: i32) {
-        self.dungeon_map_1d.set(
-            (y * self.dungeon_width + x).try_into().unwrap(),
-            tile);
-    }
-
-    #[func]
-    fn generate_map(&mut self, width: i32, height: i32) {
-        self.static_map_manager.generate_simple_map(width, height);
-        self.copy_from_map_manager();
-    }
-
-    #[func]
-    fn generate_dungeon(&mut self, width: i32, height: i32) {
-        self.static_map_manager.generate_dungeon(width, height);
-        self.copy_from_map_manager();
-    }
-
-    fn copy_from_map_manager(&mut self) {
-        self.dungeon_width = self.static_map_manager.dungeon_width;
-        self.dungeon_height = self.static_map_manager.dungeon_height;
-        self.dungeon_map_1d.resize((self.dungeon_width * self.dungeon_height).try_into().unwrap(), &0);
-        for y in 0..self.dungeon_height {
-            for x in 0..self.dungeon_width {
-                self.set_tile(x, y, self.static_map_manager.dungeon_map_2d[x as usize][y as usize]);
-            }
-        }
-    }
-
-
-}
