@@ -91,13 +91,15 @@ impl GameMaster {
         })
     }
 
+    // 一番最初にマップ生成を行う関数
+    // TODO: 次のレベルに進むときにもこれを呼び出していいかどうかの検証
     #[func]
     fn initialize_level(&mut self, width: i32, height: i32) {
         // 静的マップの生成
         self.static_map_manager.generate_dungeon(width, height);
         self.copy_from_static_map_manager();
 
-        // プレイヤーの初期位置を候補からランダムに選択
+        // プレイヤーの初期位置とゴールを候補からランダムに選択
         let n_position_candidates = self.static_map_manager.room_params.len();
         if n_position_candidates == 0 {
             return;
@@ -105,11 +107,17 @@ impl GameMaster {
             let param = &self.static_map_manager.room_params[0];
             self.dynamic_map_manager.player.position = 
                 (param.room_center_x, param.room_center_y);
+            self.dynamic_map_manager.goal_position = 
+                (param.room_center_x, param.room_center_y);
             return;
         } else {
             let position_idx = (rand::random::<f32>() * (n_position_candidates - 1) as f32) as usize;
             let param = &self.static_map_manager.room_params[position_idx];
             self.dynamic_map_manager.player.position = 
+                (param.room_center_x, param.room_center_y);
+            let position_idx = (rand::random::<f32>() * (n_position_candidates - 1) as f32) as usize;
+            let param = &self.static_map_manager.room_params[position_idx];
+            self.dynamic_map_manager.goal_position = 
                 (param.room_center_x, param.room_center_y);
         }
 
@@ -173,7 +181,44 @@ impl GameMaster {
         self.message.clear();
     }
 
+    // goal_positionをgodotに渡す
+    #[func]
+    fn get_goal_position(&self) -> Vector2i {
+        let (x, y) = self.dynamic_map_manager.goal_position;
+        Vector2i::new(x, y)
+    }
+
     // gamemasterはplayerに関する情報をgodotに渡す
+    // playerのステータスをGStringにして返す
+    #[func]
+    fn get_player_status(&self) -> GString {
+        let player = &self.dynamic_map_manager.player;
+        format!("Level: {}\nHP: {} /{}\nAttack: {}\nDefense: {}\nexp: {}",
+            player.level, player.hp, player.max_hp, player.attack, player.defense, player.exp_point).into()
+    }
+
+    // playerのアイテムリストをGStringのArrayにしてgodotに渡す
+    #[func]
+    fn get_player_items(&self) -> Array<GString> {
+        let mut items = Array::new();
+        for item in &self.dynamic_map_manager.player.items {
+            let item_str = match *item.borrow() {
+                GameItem::HealthPotion(potion) => {
+                    format!("Health Potion: {}", potion.heal_amount)
+                }
+                GameItem::Sword(sword) => {
+                    format!("Sword: {}", sword.attack_bonus)
+                }
+                GameItem::Shield(shield) => {
+                    format!("Shield: {}", shield.defense_bonus)
+                }
+                _ => "-".into()
+            };
+            items.push(item_str.into());
+        }
+        items
+    }
+
     // playerの位置
     #[func]
     fn get_player_position(&self) -> Vector2i {
@@ -261,6 +306,9 @@ impl GameMaster {
                         self.dropped_item_removed_ids.push(ditem_rc.borrow().id);
                         self.dynamic_map_manager.item_list.remove(idx);
                         self.message.push("アイテムを拾った。".into());
+                    } else {
+                        // 拾えなかった場合、メッセージを表示
+                        self.message.push("持ち物がいっぱいです。".into());
                     }
                 }
                 result = true;
@@ -361,6 +409,9 @@ impl GameMaster {
                     self.dynamic_map_manager.item_list.push(RefCell::new(ditem));
                     self.current_item_id_max += 1;
                     self.dropped_item_added_ids.push(item_id);
+                    // モブの持っていたexp_pointをプレイヤーに加算
+                    self.dynamic_map_manager.player.exp_point +=
+                        self.dynamic_map_manager.mob_list[idx].borrow().exp_point;
                     // モブをリストから削除
                     self.dynamic_map_manager.mob_list.remove(idx);
                     self.dynamic_map_manager.defeated_mob_id.push(id);
@@ -384,13 +435,31 @@ impl GameMaster {
         let mut mob_next_positions = vec![];
         self.mob_attack_info.clear();
 
-        for mob_rc in &mut self.dynamic_map_manager.mob_list {
-            // TODO: 同じ部屋に入ったモブだけがアクティブになるようにする
+        // プレイヤーの位置はこの関数を呼び出している間は不変なので、ループの外で取得
+        let (px, py) = self.dynamic_map_manager.player.position;
 
+        for mob_rc in &mut self.dynamic_map_manager.mob_list {
             let mut mob = mob_rc.borrow_mut();
-            // プレイヤーの位置との距離を計算
-            let (px, py) = self.dynamic_map_manager.player.position;
+            // 同じ部屋に入ったモブだけがアクティブになるようにする
             let (mx, my) = mob.position;
+            // 部屋にいるかどうかの判定は、BSPNodeParamsのx, y, width, heightから計算を行う。
+            // これを、px, pyとmx, myが同じ部屋にいるかどうかで判定する。
+            let mut in_same_room = false;
+            for param in &self.static_map_manager.room_params {
+                if px >= param.x && px < param.x + param.width &&
+                    py >= param.y && py < param.y + param.height &&
+                    mx >= param.x && mx < param.x + param.width &&
+                    my >= param.y && my < param.y + param.height {
+                    in_same_room = true;
+                    break;
+                }
+            }
+            // 同じ部屋にいる場合だけ行動
+            if !in_same_room {
+                continue;
+            }
+
+            // プレイヤーの位置との距離を計算
             let dx = px - mx;
             let dy = py - my;
             let abs_dx = dx.abs();
@@ -521,6 +590,11 @@ impl GameMaster {
         self.applyPlayerSideEffect();
         // プレイヤーのattack_infoの反映
         self.applyPlayerAttackInfo();
+
+        // TODO: プレイヤーのレベルアップ判定
+        if self.dynamic_map_manager.player.check_level_up() {
+            self.message.push("レベルアップした。".into());
+        }
 
         // TODO: モブの行動を決定
         self.decideMobAction();

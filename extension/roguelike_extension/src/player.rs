@@ -15,6 +15,11 @@ pub enum Direction {
     UpLeft,
 }
 
+
+// プレイヤーのステータス
+// TODO: 経験値とレベルの概念を追加する
+// TODO: 装備品の概念を追加する
+//  item.rsのSwrod, Shieldを保持できるようにする。
 pub struct GamePlayer {
     pub position: (i32, i32),
     pub direction: Direction,
@@ -24,6 +29,8 @@ pub struct GamePlayer {
     pub defense: i32,
     pub items: Vec<RefCell<GameItem>>,
     pub active_item_index: usize,
+    pub exp_point: i32,
+    pub level: i32,
 }
 
 impl GamePlayer {
@@ -37,6 +44,8 @@ impl GamePlayer {
             defense: 5,
             items: vec![],
             active_item_index: 0,
+            exp_point: 0,
+            level: 1,
         };
         obj.init_items(8);
         obj
@@ -133,5 +142,20 @@ impl GamePlayer {
             }
         }
         result.push((x, y, damage));
+    }
+
+    // レベルアップ判定を行う
+    pub fn check_level_up(&mut self) -> bool {
+        // TODO: ここは調整が必要
+        let is_level_up = self.exp_point >= self.level * 3;
+        if is_level_up {
+            self.exp_point = 0;
+            self.level += 1;
+            self.max_hp += 10;
+            self.hp = self.max_hp;
+            self.attack += 2;
+            self.defense += 1;
+        }
+        is_level_up
     }
 }

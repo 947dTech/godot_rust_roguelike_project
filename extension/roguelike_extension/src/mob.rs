@@ -1,5 +1,7 @@
 use crate::player::Direction;
 
+// 敵のステータス
+// TODO: 敵の種類を増やしたいときはどうするかを決める
 pub struct GameMob {
     pub id: i32,
     pub position: (i32, i32),
@@ -7,6 +9,7 @@ pub struct GameMob {
     pub hp: i32,
     pub attack: i32,
     pub defense: i32,
+    pub exp_point: i32,
 }
 
 impl GameMob {
@@ -18,6 +21,7 @@ impl GameMob {
             hp: 10,
             attack: 5,
             defense: 2,
+            exp_point: 1,
         }
     }
 

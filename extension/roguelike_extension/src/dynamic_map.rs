@@ -11,6 +11,7 @@ pub struct DynamicMapManager {
     pub mob_list: Vec<RefCell<GameMob>>,
 
     pub defeated_mob_id: Vec<i32>,
+    pub goal_position: (i32, i32),
 }
 
 impl DynamicMapManager {
@@ -20,6 +21,7 @@ impl DynamicMapManager {
             item_list: vec![],
             mob_list: vec![],
             defeated_mob_id: vec![],
+            goal_position: (0, 0),
         }
     }
 }
