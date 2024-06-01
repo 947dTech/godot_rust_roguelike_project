@@ -1,3 +1,5 @@
+//! ゲーム全体を管理するモジュール、Godot側からはこのモジュールが呼び出される
+
 use godot::prelude::*;
 use crate::player::Direction;
 use crate::item::GameItem;
@@ -14,28 +16,41 @@ use std::cell::RefCell;
 #[derive(GodotClass)]
 #[class(base=Node3D)]
 pub struct GameMaster {
-    static_map_manager: StaticMapManager,
-    dynamic_map_manager: DynamicMapManager,
+    /// 静的マップ
+    pub static_map_manager: StaticMapManager,
+    /// 動的マップ
+    pub dynamic_map_manager: DynamicMapManager,
 
+    /// マップの幅
     #[export]
-    dungeon_width: i32,
+    pub dungeon_width: i32,
+    /// マップの高さ
     #[export]
-    dungeon_height: i32,
+    pub dungeon_height: i32,
+    /// 1次元配列でのマップ情報
     #[export]
-    dungeon_map_1d: Array<i32>,
+    pub dungeon_map_1d: Array<i32>,
 
+    /// そのターンに発行されたメッセージ
     #[export]
-    message: Array<GString>,
+    pub message: Array<GString>,
 
-    player_attack_info: Vec<(i32, i32, i32)>,
-    player_side_effect_info: Vec<SideEffect>,
+    /// そのターンにプレイヤーが行った攻撃情報
+    pub player_attack_info: Vec<(i32, i32, i32)>,
+    /// そのターンにプレイヤーが行ったアイテム使用情報
+    pub player_side_effect_info: Vec<SideEffect>,
 
-    mob_attack_info: Vec<(i32, i32, i32, i32)>,
-    mob_side_effect_info: Vec<SideEffect>,
+    /// そのターンに敵が行った攻撃情報
+    pub mob_attack_info: Vec<(i32, i32, i32, i32)>,
+    /// そのターンに敵が行ったアイテム使用情報
+    pub mob_side_effect_info: Vec<SideEffect>,
 
-    current_item_id_max: i32,
-    dropped_item_added_ids: Vec<i32>,
-    dropped_item_removed_ids: Vec<i32>,
+    /// 現在落ちているアイテムのIDの最大値
+    pub current_item_id_max: i32,
+    /// そのターンにマップ上に追加されたアイテムのID
+    pub dropped_item_added_ids: Vec<i32>,
+    /// そのターンにマップ上に削除されたアイテムのID
+    pub dropped_item_removed_ids: Vec<i32>,
 
     base: Base<Node3D>,
 }
@@ -69,8 +84,9 @@ impl INode3D for GameMaster {
 
 #[godot_api]
 impl GameMaster {
+    /// インスタンスを生成
     #[func]
-    fn new() -> Gd<Self> {
+    pub fn new() -> Gd<Self> {
         Gd::from_init_fn(|base| {
             Self {
                 dungeon_width: 100,
@@ -91,10 +107,10 @@ impl GameMaster {
         })
     }
 
-    // 一番最初にマップ生成を行う関数
+    /// 一番最初にマップ生成を行う関数
     // TODO: 次のレベルに進むときにもこれを呼び出していいかどうかの検証
     #[func]
-    fn initialize_level(&mut self, width: i32, height: i32) {
+    pub fn initialize_level(&mut self, width: i32, height: i32) {
         // 静的マップの生成
         self.static_map_manager.generate_dungeon(width, height);
         self.copy_from_static_map_manager();
@@ -175,31 +191,39 @@ impl GameMaster {
         godot_print!("{} mobs generated (max: {})", mob_count, mob_max);
     }
 
-    // メッセージをクリア、godot側から呼び出される
+    /// メッセージをクリア、godot側から呼び出される
     #[func]
-    fn clear_message(&mut self) {
+    pub fn clear_message(&mut self) {
         self.message.clear();
     }
 
-    // goal_positionをgodotに渡す
+    /// goal_positionをgodotに渡す
+    ///
+    /// # Returns
+    /// goal_positionをVector2iにして返す
     #[func]
-    fn get_goal_position(&self) -> Vector2i {
+    pub fn get_goal_position(&self) -> Vector2i {
         let (x, y) = self.dynamic_map_manager.goal_position;
         Vector2i::new(x, y)
     }
 
-    // gamemasterはplayerに関する情報をgodotに渡す
-    // playerのステータスをGStringにして返す
+    /// gamemasterはplayerに関する情報をgodotに渡す
+    ///
+    /// # Returns
+    /// playerのステータスをGStringにして返す
     #[func]
-    fn get_player_status(&self) -> GString {
+    pub fn get_player_status(&self) -> GString {
         let player = &self.dynamic_map_manager.player;
         format!("Level: {}\nHP: {} /{}\nAttack: {}\nDefense: {}\nexp: {}",
             player.level, player.hp, player.max_hp, player.attack, player.defense, player.exp_point).into()
     }
 
-    // playerのアイテムリストをGStringのArrayにしてgodotに渡す
+    /// playerのアイテムリストをGStringのArrayにしてgodotに渡す
+    ///
+    /// # Returns
+    /// playerのアイテムリストをGStringのArrayにして返す
     #[func]
-    fn get_player_items(&self) -> Array<GString> {
+    pub fn get_player_items(&self) -> Array<GString> {
         let mut items = Array::new();
         for item in &self.dynamic_map_manager.player.items {
             let item_str = match *item.borrow() {
@@ -219,9 +243,9 @@ impl GameMaster {
         items
     }
 
-    // playerの位置
+    /// playerの位置
     #[func]
-    fn get_player_position(&self) -> Vector2i {
+    pub fn get_player_position(&self) -> Vector2i {
         let mut position = Vector2i::ZERO;
         let (x, y) = self.dynamic_map_manager.player.position;
         position.x = x;
@@ -229,9 +253,9 @@ impl GameMaster {
         position
     }
 
-    // playerの向き
+    /// playerの向き
     #[func]
-    fn get_player_direction(&self) -> i32 {
+    pub fn get_player_direction(&self) -> i32 {
          match self.dynamic_map_manager.player.direction {
             Direction::Up => 0,
             Direction::UpRight => 1,
@@ -245,9 +269,9 @@ impl GameMaster {
         }
     }
 
-    // playerに向きを指示、ターンを消費しない
+    /// playerに向きを指示、ターンを消費しない
     #[func]
-    fn player_turn(&mut self, direction: i32) {
+    pub fn player_turn(&mut self, direction: i32) {
         let player_dir = match direction {
             0 => Direction::Up,
             1 => Direction::UpRight,
@@ -262,9 +286,15 @@ impl GameMaster {
         self.dynamic_map_manager.player.direction = player_dir;
     }
 
-    // playerに移動を指示、ターンを消費する
+    /// playerに移動を指示、ターンを消費する
+    ///
+    /// # Arguments
+    /// * `next_position` - 移動先の座標
+    ///
+    /// # Returns
+    /// 移動が成功したかどうか、成功した場合はtrueを返す、失敗した場合はfalseを返す。
     #[func]
-    fn player_move(&mut self, next_position: Vector2i) -> bool {
+    pub fn player_move(&mut self, next_position: Vector2i) -> bool {
         let mut result = false;
         // ターンの最初にアイテムの差分をクリア
         self.dropped_item_added_ids.clear();
@@ -317,9 +347,9 @@ impl GameMaster {
         result
     }
 
-    // playerに攻撃を指示、ターンを消費する
+    /// playerに攻撃を指示、ターンを消費する
     #[func]
-    fn player_attack(&mut self) {
+    pub fn player_attack(&mut self) {
         // ターンの最初にアイテムの差分をクリア
         self.dropped_item_added_ids.clear();
         self.dropped_item_removed_ids.clear();
@@ -331,9 +361,9 @@ impl GameMaster {
         }
     }
 
-    // playerにアイテムを拾うよう指示、ターンを消費する
+    /// playerにアイテムを拾うよう指示、ターンを消費する
     #[func]
-    fn player_pickup_item(&mut self) {
+    pub fn player_pickup_item(&mut self) {
         // ターンの最初にアイテムの差分をクリア
         self.dropped_item_added_ids.clear();
         self.dropped_item_removed_ids.clear();
@@ -353,16 +383,16 @@ impl GameMaster {
         }
     }
 
-    // playerにアイテムを使うよう指示、ターンを消費する
+    /// playerにアイテムを使うよう指示、ターンを消費する
     #[func]
-    fn player_use_item(&mut self, item_idx: i32) {
+    pub fn player_use_item(&mut self, item_idx: i32) {
         self.player_side_effect_info.clear();
         self.dynamic_map_manager.player.select_item(item_idx as usize);
         self.player_side_effect_info.push(self.dynamic_map_manager.player.use_item());
     }
 
-    // playerのアイテム使用時のsideeffectの反映
-    fn applyPlayerSideEffect(&mut self) {
+    /// playerのアイテム使用時のsideeffectの反映
+    pub fn applyPlayerSideEffect(&mut self) {
         for (idx, side_effect) in self.player_side_effect_info.iter().enumerate() {
             match side_effect {
                 SideEffect::Fault => {
@@ -375,8 +405,8 @@ impl GameMaster {
         }
     }
 
-    // playerのattack_infoの反映
-    fn applyPlayerAttackInfo(&mut self) {
+    /// playerのattack_infoの反映
+    pub fn applyPlayerAttackInfo(&mut self) {
         self.dynamic_map_manager.defeated_mob_id.clear();
         let mut fumbled = true;
         for (x, y, damage) in &self.player_attack_info {
@@ -429,9 +459,9 @@ impl GameMaster {
         self.player_attack_info.clear();
     }
 
-    // mobの行動を決定
+    /// mobの行動を決定
     // TODO: もっと複雑なAIを実装する
-    fn decideMobAction(&mut self) {
+    pub fn decideMobAction(&mut self) {
         let mut mob_next_positions = vec![];
         self.mob_attack_info.clear();
 
@@ -551,8 +581,8 @@ impl GameMaster {
         }
     }
 
-    // mobのアイテム使用時のsideeffectの反映
-    fn applyMobSideEffect(&mut self) {
+    /// mobのアイテム使用時のsideeffectの反映
+    pub fn applyMobSideEffect(&mut self) {
         for (idx, side_effect) in self.mob_side_effect_info.iter().enumerate() {
             match side_effect {
                 SideEffect::Fault => {
@@ -565,8 +595,8 @@ impl GameMaster {
         }
     }
 
-    // mobのattack_infoの反映
-    fn applyMobAttackInfo(&mut self) {
+    /// mobのattack_infoの反映
+    pub fn applyMobAttackInfo(&mut self) {
         for (x, y, damage, mob_id) in &self.mob_attack_info {
             // プレイヤーの位置と一致するものがあればダメージを与える
             if self.dynamic_map_manager.player.position == (*x, *y) {
@@ -582,9 +612,9 @@ impl GameMaster {
         self.mob_attack_info.clear();
     }
 
-    // 1ターンを定義、godot側から進めるかどうかを決めて呼び出す。
+    /// 1ターンを定義、godot側から進めるかどうかを決めて呼び出す。
     #[func]
-    fn process(&mut self) {
+    pub fn process(&mut self) {
         // プレイヤーの行動はすでに反映された状態を起点とする。
         // プレイヤーのアイテム使用時のsideeffectの反映
         self.applyPlayerSideEffect();
@@ -627,9 +657,9 @@ impl GameMaster {
         }
     }
 
-    // デバッグ用、プレイヤーのステータスを表示
+    /// デバッグ用、プレイヤーのステータスを表示
     #[func]
-    fn print_player_status(&self) {
+    pub fn print_player_status(&self) {
         godot_print!(
             "Player Status: HP: {} / {}, Attack: {}, Defense: {}",
             self.dynamic_map_manager.player.hp,
@@ -638,9 +668,9 @@ impl GameMaster {
             self.dynamic_map_manager.player.defense);
     }
 
-    // デバッグ用、プレイヤーの所持品を表示
+    /// デバッグ用、プレイヤーの所持品を表示
     #[func]
-    fn print_player_items(&self) {
+    pub fn print_player_items(&self) {
         godot_print!("Player Items:");
         for item in &self.dynamic_map_manager.player.items {
             godot_print!("{:?}", item);
@@ -666,9 +696,9 @@ impl GameMaster {
     }
 
     // 落ちているアイテムの情報を取得
-    // 落ちているアイテムの位置を取得
+    /// 落ちているアイテムの位置を取得
     #[func]
-    fn get_dropped_item_positions(&self) -> Array<Vector2i> {
+    pub fn get_dropped_item_positions(&self) -> Array<Vector2i> {
         let mut positions = array![];
         for item_rc in &self.dynamic_map_manager.item_list {
             let item = item_rc.borrow();
@@ -677,9 +707,9 @@ impl GameMaster {
         positions
     }
 
-    // 落ちているアイテムのIDを取得
+    /// 落ちているアイテムのIDを取得
     #[func]
-    fn get_dropped_item_ids(&self) -> Array<i32> {
+    pub fn get_dropped_item_ids(&self) -> Array<i32> {
         let mut ids = array![];
         for item_rc in &self.dynamic_map_manager.item_list {
             let item = item_rc.borrow();
@@ -688,9 +718,9 @@ impl GameMaster {
         ids
     }
 
-    // 拾われたアイテムのIDを取得
+    /// 拾われたアイテムのIDを取得
     #[func]
-    fn get_dropped_item_removed_ids(&self) -> Array<i32> {
+    pub fn get_dropped_item_removed_ids(&self) -> Array<i32> {
         let mut ids = array![];
         for id in &self.dropped_item_removed_ids {
             ids.push(*id);
@@ -698,9 +728,9 @@ impl GameMaster {
         ids
     }
 
-    // 落とされたアイテムのIDを取得
+    /// 落とされたアイテムのIDを取得
     #[func]
-    fn get_dropped_item_added_ids(&self) -> Array<i32> {
+    pub fn get_dropped_item_added_ids(&self) -> Array<i32> {
         let mut ids = array![];
         for id in &self.dropped_item_added_ids {
             ids.push(*id);
@@ -709,9 +739,9 @@ impl GameMaster {
     }
 
     // 敵の情報を取得する関数群
-    // 敵の位置を取得
+    /// 敵の位置を取得
     #[func]
-    fn get_mob_positions(&self) -> Array<Vector2i> {
+    pub fn get_mob_positions(&self) -> Array<Vector2i> {
         let mut positions = array![];
         for mob_rc in &self.dynamic_map_manager.mob_list {
             let mob = mob_rc.borrow();
@@ -720,9 +750,9 @@ impl GameMaster {
         positions
     }
 
-    // 敵の向きを取得
+    /// 敵の向きを取得
     #[func]
-    fn get_mob_directions(&self) -> Array<i32> {
+    pub fn get_mob_directions(&self) -> Array<i32> {
         let mut directions = array![];
         for mob_rc in &self.dynamic_map_manager.mob_list {
             let mob = mob_rc.borrow();
@@ -742,9 +772,9 @@ impl GameMaster {
         directions
     }
 
-    // 敵のIDを取得
+    /// 敵のIDを取得
     #[func]
-    fn get_mob_ids(&self) -> Array<i32> {
+    pub fn get_mob_ids(&self) -> Array<i32> {
         let mut ids = array![];
         for mob_rc in &self.dynamic_map_manager.mob_list {
             let mob = mob_rc.borrow();
@@ -753,9 +783,9 @@ impl GameMaster {
         ids
     }
 
-    // このターンに倒された敵のIDを取得
+    /// このターンに倒された敵のIDを取得
     #[func]
-    fn get_defeated_mob_ids(&self) -> Array<i32> {
+    pub fn get_defeated_mob_ids(&self) -> Array<i32> {
         let mut ids = array![];
         for id in &self.dynamic_map_manager.defeated_mob_id {
             ids.push(*id);

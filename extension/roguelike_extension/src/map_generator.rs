@@ -1,3 +1,5 @@
+//! マップ生成アルゴリズムを提供するモジュール
+
 use rand;
 use std::io::Cursor;
 use std::cmp::{
@@ -5,39 +7,56 @@ max, min
 };
   
   
-// 部屋をつなぐための方向を定義したenum
+/// 部屋をつなぐための方向を定義したenum
 #[derive(Debug, PartialEq)]
 pub enum Direction {
+    /// 上
     North,
+    /// 下
     South,
+    /// 右
     East,
+    /// 左
     West,
+    /// なし
     None,
 }
   
-// 二分木が持つべき構造体を定義
+/// 二分木が持つべき構造体を定義
 pub struct BSPNodeParams {
+    /// 部屋の左上のx座標
     pub x: i32,
+    /// 部屋の左上のy座標
     pub y: i32,
+    /// 部屋の幅
     pub width: i32,
+    /// 部屋の高さ
     pub height: i32,
+    /// 部屋の中心のx座標
     pub room_center_x: i32,
+    /// 部屋の中心のy座標
     pub room_center_y: i32,
+    /// どの方向に部屋をつなぐか
     pub connect_to: Direction,
 }
   
-// 二分木を構成するenumを定義
-enum BSPTree {
+/// 二分木を構成するenumを定義
+pub enum BSPTree {
+    /// ノード
     Node {
+        /// ノードのもつパラメータ
         value: BSPNodeParams,
+        /// 左の子ノード
         left: Box<BSPTree>,
+        /// 右の子ノード
         right: Box<BSPTree>,
     },
+    /// 終端ノード
     Nil,
 }
   
-// 二分木の内容を出力する関数
-fn print_tree(tree: &BSPTree) {
+/// 二分木の内容を出力する関数
+pub fn print_tree(tree: &BSPTree) {
     match tree {
         BSPTree::Node { value, left, right } => {
             println!("(x, y, width, height) = ({}, {}, {}, {})",
@@ -53,9 +72,11 @@ fn print_tree(tree: &BSPTree) {
     }
 }
   
-// 二分木を生成する再帰関数
-// ノードが必ず左右に存在することを保証しなければならない。
-fn generate_bsp_tree(x: i32, y: i32, width: i32, height: i32, connect_to: Direction, level: i32) -> BSPTree {
+/// 二分木を生成する再帰関数
+///
+/// ノードが必ず左右に存在することを保証しなければならない。
+///
+pub fn generate_bsp_tree(x: i32, y: i32, width: i32, height: i32, connect_to: Direction, level: i32) -> BSPTree {
     let min_room_size = 16;
     if width < min_room_size || height < min_room_size {
         return BSPTree::Nil;
@@ -125,6 +146,7 @@ fn generate_bsp_tree(x: i32, y: i32, width: i32, height: i32, connect_to: Direct
     }
 }
   
+/// ダンジョンを生成する関数
 pub fn generate_dungeon(
     width: i32,
     height: i32
@@ -407,4 +429,60 @@ pub fn generate_dungeon(
     get_room_dimensions(&mut room_params, &mut tree);
   
     (dungeon, room_params)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+  
+    #[test]
+    fn test_generate_bsp_tree() {
+        let tree = generate_bsp_tree(0, 0, 64, 64, Direction::None, 0);
+        fn check_tree_params(tree: &BSPTree) {
+            match tree {
+                BSPTree::Node { value, left, right } => {
+                    // 中間のノードでは、各パラメータに齟齬がないかチェックする。
+                    // 生成時に以下のようになっているはず
+                    // room_center_x: x + width / 2,
+                    // room_center_y: y + height / 2,
+                    assert_eq!(value.room_center_x, (value.x + value.width / 2));
+                    assert_eq!(value.room_center_y, (value.y + value.height / 2));
+                    check_tree_params(left);
+                    check_tree_params(right);
+                },
+                BSPTree::Nil => {
+                    // 終端ノードなのでチェックをする必要はない
+                    println!("^ this is terminal node.");
+                }
+            }
+        }
+    }
+  
+    #[test]
+    fn test_generate_dungeon() {
+        let (dungeon, room_params) = generate_dungeon(64, 64);
+        // dungeonの中身を確認
+        // dungeonのサイズは64x64で、壁は1、通路は0で表現されている
+        assert_eq!(dungeon.len(), 64);
+        for i in 0..64 {
+            assert_eq!(dungeon[i].len(), 64);
+        }
+        // dungeonの全要素を確認
+        for i in 0..64 {
+            for j in 0..64 {
+                assert!(dungeon[i][j] == 0 || dungeon[i][j] == 1);
+            }
+        }
+
+        // room_paramsの中身を確認
+        for room in room_params {
+            // roomのサイズは16x16以上であること
+            assert!(room.width >= 16);
+            assert!(room.height >= 16);
+            // roomの中心座標が正しいこと
+            assert_eq!(room.room_center_x, room.x + room.width / 2);
+            assert_eq!(room.room_center_y, room.y + room.height / 2);
+        }
+    }
 }

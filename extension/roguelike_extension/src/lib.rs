@@ -1,3 +1,5 @@
+//! # Roguelike Extension
+
 use godot::prelude::*;
 
 struct RogueLikeExtension;
@@ -5,10 +7,10 @@ struct RogueLikeExtension;
 #[gdextension]
 unsafe impl ExtensionLibrary for RogueLikeExtension {}
 
-mod static_map;
-mod map_generator;
-mod dynamic_map;
-mod game_master;
-mod player;
-mod mob;
-mod item;
+pub mod static_map;
+pub mod map_generator;
+pub mod dynamic_map;
+pub mod game_master;
+pub mod player;
+pub mod mob;
+pub mod item;

@@ -1,6 +1,8 @@
+//! 敵のステータスを管理するモジュール
+
 use crate::player::Direction;
 
-// 敵のステータス
+/// 敵のステータス
 // TODO: 敵の種類を増やしたいときはどうするかを決める
 pub struct GameMob {
     pub id: i32,
@@ -13,6 +15,7 @@ pub struct GameMob {
 }
 
 impl GameMob {
+    /// 新しいインスタンスを生成する
     pub fn new(id: i32, x: i32, y: i32) -> Self {
         Self {
             id: id,
@@ -25,6 +28,7 @@ impl GameMob {
         }
     }
 
+    /// 攻撃を行う
     pub fn attack(&self, result: &mut Vec<(i32, i32, i32)>) {
         let (mut x, mut y) = self.position;
         let mut damage = self.attack;
@@ -53,5 +57,31 @@ impl GameMob {
             }
         }
         result.push((x, y, damage));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new() {
+        let mob = GameMob::new(1, 10, 20);
+        assert_eq!(mob.id, 1);
+        assert_eq!(mob.position, (10, 20));
+        assert_eq!(mob.direction, Direction::Up);
+        assert_eq!(mob.hp, 10);
+        assert_eq!(mob.attack, 5);
+        assert_eq!(mob.defense, 2);
+        assert_eq!(mob.exp_point, 1);
+    }
+
+    #[test]
+    fn test_attack() {
+        let mut mob = GameMob::new(1, 10, 20);
+        let mut result = vec![];
+        mob.attack(&mut result);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], (10, 19, 5));
     }
 }
