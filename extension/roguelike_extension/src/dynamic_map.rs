@@ -33,4 +33,11 @@ impl DynamicMapManager {
             goal_position: (0, 0),
         }
     }
+
+    /// シーン遷移した場合はリストだけ初期化する
+    pub fn clear(&mut self) {
+        self.item_list.clear();
+        self.mob_list.clear();
+        self.defeated_mob_id.clear();
+    }
 }

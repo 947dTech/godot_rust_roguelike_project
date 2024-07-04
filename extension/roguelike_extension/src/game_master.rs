@@ -115,6 +115,9 @@ impl GameMaster {
         self.static_map_manager.generate_dungeon(width, height);
         self.copy_from_static_map_manager();
 
+        // 動的マップの初期化
+        self.dynamic_map_manager.clear();
+
         // プレイヤーの初期位置とゴールを候補からランダムに選択
         let n_position_candidates = self.static_map_manager.room_params.len();
         if n_position_candidates == 0 {

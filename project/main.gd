@@ -5,6 +5,9 @@ var gamemaster
 var dungeon_width: int
 var dungeon_height: int
 var player_position: Vector2i
+var goal_position: Vector2i
+
+var goal_reached: bool
 
 var player_direction: int
 # UP: -y = 0
@@ -16,6 +19,7 @@ var player_direction: int
 
 @export var item_scene: PackedScene
 @export var mob_scene: PackedScene
+@export var goal_scene: PackedScene
 
 var item_list: Array
 var mob_list: Array
@@ -34,14 +38,16 @@ var command_list: Array
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	gamemaster = get_node("GameMaster")
+	goal_reached = false
+	gamemaster = get_node("/root/GlobalGameMaster")
+	# TODO: マップ初期化の際に現在の階層を考慮したレベルデザインを行う。
 	gamemaster.initialize_level(64, 64)
 	var gridmap = get_node("Map")
 	gridmap.initialize_map(gamemaster)
 	#dungeon_width = gridmap.dungeon_width
 	#dungeon_height = gridmap.dungeon_height
 	#print("dungeon_size: ", dungeon_width, " X ", dungeon_height)
-	# TODO: プレイヤーの初期スポーン地点は移動可能な場所でなければいけない
+	# プレイヤーの初期スポーン地点は移動可能な場所でなければいけない
 	#  そのため、mapmanagerで候補をあげてほしい
 	#player_position = Vector2(dungeon_width / 2, dungeon_height / 2)
 	player_position = gamemaster.get_player_position()
@@ -85,7 +91,12 @@ func _ready():
 		add_child(mob_inst)
 		mob_list.append(mob_inst)
 
-	# TODO: ゴールを表示
+	# ゴールを表示
+	goal_position = gamemaster.get_goal_position()
+	var goal_inst = goal_scene.instantiate()
+	goal_inst.transform = goal_inst.transform.translated(
+		get_node("Map").grid_to_geometry(goal_position))
+	add_child(goal_inst)
 
 	# カメラを切り替え
 	get_node("Player/TPCamera3D").make_current()
@@ -120,8 +131,9 @@ func update_command_list():
 	command_list.clear()
 	command_list.append("アイテムを使う")
 	command_list.append("装備変更")
-	# TODO: 次の階層へは自分がゴールの上にいるときだけ移動できる
-	command_list.append("次の階層へ移動")
+	# 次の階層へは自分がゴールの上にいるときだけ移動できる
+	if goal_position == player_position:
+		command_list.append("次の階層へ移動")
 	command_list.append("ゲーム終了")
 
 
@@ -190,11 +202,11 @@ func _process(delta):
 	var player = get_node("Player")
 	var gridmap = get_node("Map")
 	if !player.anim_playing:
-		# TODO: コマンド選択UIを経由して行動を決定したい。
+		# コマンド選択UIを経由して行動を決定する。
 		# キャンセルボタンで表示切替を行う。
 		if Input.is_action_just_pressed("cancel_button"):
 			command_area.visible = !command_area.visible
-			# TODO: UIを開いた瞬間にUI用のメッセージを生成する
+			# UIを開いた瞬間にUI用のメッセージを生成する
 			if command_area.visible:
 				update_command_list()
 				update_command_label()
@@ -208,10 +220,18 @@ func _process(delta):
 				selected_idx = (selected_idx - 1 + command_list.size()) % command_list.size()
 				update_command_label()
 			elif Input.is_action_just_pressed("apply_button"):
-				# TODO: 選択されているコマンドを実行
-				pass
+				# 選択されているコマンドを実行
+				if command_list[selected_idx] == "次の階層へ移動":
+					gamemaster.goto_scene("res://main.tscn")
 
-		# UIを開いていない場合は直接移動もしくは攻撃
+		# ゴールに前回の移動の結果乗った場合は次の階層へ移動するかどうかを問い合わせるUIを出す
+		elif goal_reached:
+			goal_reached = false
+			update_command_list()
+			update_command_label()
+			command_area.visible = true
+
+		# それ以外の場合は直接移動もしくは攻撃
 		else:
 			# TODO: 俯瞰視点とFPSを切り替えられるようにする。
 			var direction = Vector2i.ZERO
@@ -301,9 +321,9 @@ func _process(delta):
 						update_status_label()
 						update_item_label()
 
-						# TODO: 移動した後にゴールに到達した場合、
-						#  次のマップに進むかどうかをプレイヤーに選択してもらう必要がある。
-						#  次のマップに進む場合、現在のシーンは破棄して新たにシーンを作る。
+						# 移動した結果ゴールに到達したときはgoal_reachedをtrueに
+						if goal_position == player_position:
+							goal_reached = true
 
 					else:
 						print("position ", next_player_position, " is invalid, unable to move.")
