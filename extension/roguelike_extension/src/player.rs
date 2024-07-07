@@ -283,6 +283,21 @@ mod tests {
         assert_eq!(player.exp_point, 0);
         assert_eq!(player.level, 2);
         assert_eq!(player.max_hp, 110);
+        assert_eq!(player.hp, 100);
+        assert_eq!(player.attack, 12);
+        assert_eq!(player.defense, 6);
+    }
+
+    #[test]
+    fn test_check_level_up_with_heal() {
+        let mut player = GamePlayer::new();
+        player.is_heal_when_level_up = true;
+        player.exp_point = 3;
+        player.level = 1;
+        assert_eq!(player.check_level_up(), true);
+        assert_eq!(player.exp_point, 0);
+        assert_eq!(player.level, 2);
+        assert_eq!(player.max_hp, 110);
         assert_eq!(player.hp, 110);
         assert_eq!(player.attack, 12);
         assert_eq!(player.defense, 6);
