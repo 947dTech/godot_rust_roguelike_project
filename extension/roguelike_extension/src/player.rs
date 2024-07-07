@@ -34,6 +34,7 @@ pub struct GamePlayer {
     pub items: Vec<RefCell<GameItem>>,
     pub active_item_index: usize,
     pub exp_point: i32,
+    pub is_heal_when_level_up: bool,
     pub level: i32,
 }
 
@@ -50,6 +51,7 @@ impl GamePlayer {
             items: vec![],
             active_item_index: 0,
             exp_point: 0,
+            is_heal_when_level_up: false,
             level: 1,
         };
         obj.init_items(8);
@@ -169,7 +171,9 @@ impl GamePlayer {
             self.exp_point = 0;
             self.level += 1;
             self.max_hp += 10;
-            self.hp = self.max_hp;
+            if self.is_heal_when_level_up {
+                self.hp = self.max_hp;
+            }
             self.attack += 2;
             self.defense += 1;
         }

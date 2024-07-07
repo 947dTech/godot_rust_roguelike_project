@@ -17,14 +17,28 @@ pub struct GameMob {
 impl GameMob {
     /// 新しいインスタンスを生成する
     pub fn new(id: i32, x: i32, y: i32) -> Self {
+        Self::new_from_level(id, x, y, 1)
+    }
+
+    /// 現在階層に応じて新しいインスタンスを生成する
+    pub fn new_from_level(id: i32, x: i32, y: i32, level: i32) -> Self {
+        let hp = 10 * level;
+        let attack = 5 * level;
+        let defense = 2 * level;
+        let exp_point = 1 * level;
+        Self::new_from_status(id, x, y, hp, attack, defense, exp_point)
+    }
+
+    /// ステータスを指定して新しいインスタンスを生成する
+    pub fn new_from_status(id: i32, x: i32, y: i32, hp: i32, attack: i32, defense: i32, exp_point: i32) -> Self {
         Self {
             id: id,
             position: (x, y),
             direction: Direction::Up,
-            hp: 10,
-            attack: 5,
-            defense: 2,
-            exp_point: 1,
+            hp: hp,
+            attack: attack,
+            defense: defense,
+            exp_point: exp_point,
         }
     }
 

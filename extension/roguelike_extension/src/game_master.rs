@@ -21,6 +21,10 @@ pub struct GameMaster {
     /// 動的マップ
     pub dynamic_map_manager: DynamicMapManager,
 
+    /// 現在の階層
+    #[export]
+    pub current_level: i32,
+
     /// マップの幅
     #[export]
     pub dungeon_width: i32,
@@ -34,6 +38,18 @@ pub struct GameMaster {
     /// そのターンに発行されたメッセージ
     #[export]
     pub message: Array<GString>,
+
+    /// 初期配置するアイテムの数
+    #[export]
+    pub initial_item_count: i32,
+
+    /// 初期配置する敵の数
+    #[export]
+    pub initial_mob_count: i32,
+
+    /// 敵がアイテムを落とす確率
+    #[export]
+    pub mob_drop_item_probability: f32,
 
     /// そのターンにプレイヤーが行った攻撃情報
     pub player_attack_info: Vec<(i32, i32, i32)>,
@@ -59,6 +75,10 @@ pub struct GameMaster {
 impl INode3D for GameMaster {
     fn init(base: Base<Node3D>) -> Self {
         Self {
+            current_level: 1,
+            initial_item_count: 10,
+            initial_mob_count: 10,
+            mob_drop_item_probability: 0.5,
             dungeon_width: 100,
             dungeon_height: 100,
             dungeon_map_1d: Array::new(),
@@ -89,6 +109,10 @@ impl GameMaster {
     pub fn new() -> Gd<Self> {
         Gd::from_init_fn(|base| {
             Self {
+                current_level: 1,
+                initial_item_count: 10,
+                initial_mob_count: 10,
+                mob_drop_item_probability: 0.5,
                 dungeon_width: 100,
                 dungeon_height: 100,
                 dungeon_map_1d: Array::new(),
@@ -107,8 +131,13 @@ impl GameMaster {
         })
     }
 
+    /// 次の階層へ移動する際に、現在の階層を一つ進める
+    #[func]
+    pub fn next_level(&mut self) {
+        self.current_level += 1;
+    }
+
     /// 一番最初にマップ生成を行う関数
-    // TODO: 次のレベルに進むときにもこれを呼び出していいかどうかの検証
     #[func]
     pub fn initialize_level(&mut self, width: i32, height: i32) {
         // 静的マップの生成
@@ -141,15 +170,14 @@ impl GameMaster {
         }
 
         // アイテムの初期位置を設定
-        let item_max = 10;
         // 小部屋ごとに均一になるようにアイテムを配置したい
         // アイテムの総数/小部屋の数で小部屋ごとの配置数を決める
         // 端数が出るので、あえて+1している
-        let item_per_room = (item_max / self.static_map_manager.room_params.len()) + 1;
+        let item_per_room = ((self.initial_item_count as usize) / self.static_map_manager.room_params.len()) + 1;
         let mut item_count = 0;
         for param in &self.static_map_manager.room_params {
             for _ in 0..item_per_room {
-                if item_count >= item_max {
+                if item_count >= self.initial_item_count {
                     break;
                 }
                 let x = param.x + (rand::random::<f32>() * param.width as f32) as i32;
@@ -168,30 +196,29 @@ impl GameMaster {
                 // 無限ループを避け、かつアイテム数にランダム性を持たせるため厳密にmaxを狙わない
             }
         }
-        godot_print!("{} items generated (max: {})", item_count, item_max);
+        godot_print!("{} items generated (max: {})", item_count, self.initial_item_count);
         self.current_item_id_max = item_count as i32;
 
         // 敵の初期位置を設定
-        let mob_max = 10;
         // アイテムと同様の生成方法とする。
-        let mob_per_room = (mob_max / self.static_map_manager.room_params.len()) + 1;
+        let mob_per_room = ((self.initial_mob_count as usize) / self.static_map_manager.room_params.len()) + 1;
         let mut mob_count = 0;
         for param in &self.static_map_manager.room_params {
             for _ in 0..mob_per_room {
-                if mob_count >= mob_max {
+                if mob_count >= self.initial_mob_count {
                     break;
                 }
                 let x = param.x + (rand::random::<f32>() * param.width as f32) as i32;
                 let y = param.y + (rand::random::<f32>() * param.height as f32) as i32;
                 // 床である場所にのみモブを配置
                 if (self.static_map_manager.dungeon_map_2d[x as usize][y as usize] == 0) {
-                    let mob = GameMob::new(mob_count as i32, x, y);
+                    let mob = GameMob::new_from_level(mob_count as i32, x, y, self.current_level);
                     self.dynamic_map_manager.mob_list.push(RefCell::new(mob));
                     mob_count += 1;
                 }
             }
         }
-        godot_print!("{} mobs generated (max: {})", mob_count, mob_max);
+        godot_print!("{} mobs generated (max: {})", mob_count, self.initial_mob_count);
     }
 
     /// メッセージをクリア、godot側から呼び出される
@@ -386,12 +413,26 @@ impl GameMaster {
         }
     }
 
+    /// playerが現在所持しているアイテムが使えるかどうかを確認
+    #[func]
+    pub fn player_can_use_item(&self, item_idx: i32) -> bool {
+        if item_idx < 0 || item_idx as usize >= self.dynamic_map_manager.player.items.len() {
+            return false;
+        }
+        let item = &self.dynamic_map_manager.player.items[item_idx as usize];
+        match *item.borrow() {
+            GameItem::HealthPotion(_) => true,
+            _ => false,
+        }
+    }
+
     /// playerにアイテムを使うよう指示、ターンを消費する
     #[func]
     pub fn player_use_item(&mut self, item_idx: i32) {
         self.player_side_effect_info.clear();
         self.dynamic_map_manager.player.select_item(item_idx as usize);
         self.player_side_effect_info.push(self.dynamic_map_manager.player.use_item());
+        self.message.push("HPが回復した。".into());
     }
 
     /// playerのアイテム使用時のsideeffectの反映
@@ -427,21 +468,25 @@ impl GameMaster {
                 self.message.push(format!("ID{}に{}ダメージを与えた。", id, damage).into());
                 self.dynamic_map_manager.mob_list[idx].borrow_mut().hp -= damage;
                 // モブのHPが0以下になった場合、リストから削除
-                // TODO: モブを倒したら一定確率でアイテムをドロップするようにする
                 if self.dynamic_map_manager.mob_list[idx].borrow().hp <= 0 {
                     // モブの最終位置を確認
                     let (x, y) = self.dynamic_map_manager.mob_list[idx].borrow().position;
-                    // モブの最終位置にアイテムをドロップ
-                    let item = GameItem::HealthPotion(HealthPotion {heal_amount: 10});
-                    let item_id = self.current_item_id_max;
-                    let ditem = DroppedItem {
-                        id: item_id,
-                        position: (x, y),
-                        item: RefCell::new(item)
-                    };
-                    self.dynamic_map_manager.item_list.push(RefCell::new(ditem));
-                    self.current_item_id_max += 1;
-                    self.dropped_item_added_ids.push(item_id);
+
+                    // モブを倒したら一定確率でアイテムをドロップするようにする
+                    if (rand::random::<f32>() < self.mob_drop_item_probability) {
+                        // モブの最終位置にアイテムをドロップ
+                        let item = GameItem::HealthPotion(HealthPotion {heal_amount: 10});
+                        let item_id = self.current_item_id_max;
+                        let ditem = DroppedItem {
+                            id: item_id,
+                            position: (x, y),
+                            item: RefCell::new(item)
+                        };
+                        self.dynamic_map_manager.item_list.push(RefCell::new(ditem));
+                        self.current_item_id_max += 1;
+                        self.dropped_item_added_ids.push(item_id);
+                    }
+
                     // モブの持っていたexp_pointをプレイヤーに加算
                     self.dynamic_map_manager.player.exp_point +=
                         self.dynamic_map_manager.mob_list[idx].borrow().exp_point;

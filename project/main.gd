@@ -31,14 +31,27 @@ var item_label
 var command_area
 var command_label
 var selected_command_label
+var selected_item_label
+
+# 今選択されているUIの状態を指し示す列挙型
+enum UIState {
+	Player,
+	Command,
+	ItemSelection,
+}
 
 # コマンド選択UI用の変数
 var selected_idx
 var command_list: Array
+var current_ui_state = UIState.Player
+
+# アイテム選択UI用の変数
+var selected_item
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	goal_reached = false
+	current_ui_state = UIState.Player
 	gamemaster = get_node("/root/GlobalGameMaster")
 	# TODO: マップ初期化の際に現在の階層を考慮したレベルデザインを行う。
 	gamemaster.initialize_level(64, 64)
@@ -103,9 +116,12 @@ func _ready():
 	
 	# UIに文字を表示
 	message_label = get_node("Control/MessageArea/MessageLabel")
-	message_label.text = "ゲームスタート"
+	message_label.text = "現在" + str(gamemaster.current_level) + "階です。"
 	status_label = get_node("Control/StatusArea/StatusLabel")
 	item_label = get_node("Control/ItemArea/ItemLabel")
+	selected_item_label = get_node("Control/ItemArea/SelectedItemLabel")
+	# アイテム選択UIは最初は何も選択されていない状態にしておく
+	selected_item = 0
 	update_status_label()
 	update_item_label()
 	
@@ -123,8 +139,13 @@ func update_status_label():
 # 所持アイテム一覧を表示
 func update_item_label():
 	item_label.text = ""
+	selected_item_label.text = ""
 	for item in gamemaster.get_player_items():
 		item_label.text += (item + "\n")
+	if current_ui_state == UIState.ItemSelection:
+		for i in range(selected_item):
+			selected_item_label.text += "\n"
+		selected_item_label.text += ">"
 
 # 現在選択可能なコマンド一覧を作成
 func update_command_list():
@@ -202,17 +223,8 @@ func _process(delta):
 	var player = get_node("Player")
 	var gridmap = get_node("Map")
 	if !player.anim_playing:
-		# コマンド選択UIを経由して行動を決定する。
-		# キャンセルボタンで表示切替を行う。
-		if Input.is_action_just_pressed("cancel_button"):
-			command_area.visible = !command_area.visible
-			# UIを開いた瞬間にUI用のメッセージを生成する
-			if command_area.visible:
-				update_command_list()
-				update_command_label()
-		
 		# UIを開いている場合は、コマンド選択モードにする。
-		if command_area.visible:
+		if current_ui_state == UIState.Command:
 			if Input.is_action_just_pressed("move_down"):
 				selected_idx = (selected_idx + 1) % command_list.size()
 				update_command_label()
@@ -223,97 +235,191 @@ func _process(delta):
 				# 選択されているコマンドを実行
 				if command_list[selected_idx] == "次の階層へ移動":
 					gamemaster.goto_scene("res://main.tscn")
+				elif command_list[selected_idx] == "アイテムを使う":
+					# アイテム選択UIに遷移
+					selected_item = 0
+					current_ui_state = UIState.ItemSelection
+					update_item_label()
+			elif Input.is_action_just_pressed("cancel_button"):
+				current_ui_state = UIState.Player
+				command_area.visible = false
 
-		# ゴールに前回の移動の結果乗った場合は次の階層へ移動するかどうかを問い合わせるUIを出す
-		elif goal_reached:
-			goal_reached = false
-			update_command_list()
-			update_command_label()
-			command_area.visible = true
-
-		# それ以外の場合は直接移動もしくは攻撃
-		else:
-			# TODO: 俯瞰視点とFPSを切り替えられるようにする。
-			var direction = Vector2i.ZERO
-			var orientation = 0
-			
-			# FPS用の自機方向に対する移動方向の回転
-			var local_y = (player_direction - 1) % 2
-			var local_x = (-player_direction + 2) % 2
-			
-			var is_input = false
-			var is_move = false
-			var is_action = false
-			if Input.is_action_pressed("move_up"):
-				# (local_x, local_y) をそのままつかう
-				# 俯瞰
-				direction.y -= 1
-				# FPS
-				#direction.x += local_x
-				#direction.y += local_y
-				player_direction = 0
-				is_input = true
-				is_move = true
-			if Input.is_action_pressed("move_left"):
-				# (local_y, -local_x) をつかう
-				direction.x -= 1
-				#direction.x += local_y
-				#direction.y -= local_x
-				player_direction = 6
-				is_input = true
-				is_move = true
-			if Input.is_action_pressed("move_down"):
-				# (-local_x, -local_y) をつかう
-				direction.y += 1
-				#direction.x -= local_x
-				#direction.y -= local_y
-				player_direction = 4
-				is_input = true
-				is_move = true
-			if Input.is_action_pressed("move_right"):
-				# (-local_y, local_x) をつかう
-				direction.x += 1
-				#direction.x -= local_y
-				#direction.y += local_x
-				player_direction = 2
-				is_input = true
-				is_move = true
-			if Input.is_action_just_pressed("rotate_left"):
-				player_direction = (player_direction + 7) % 8
-				orientation = 1
-				is_input = true
-			if Input.is_action_just_pressed("rotate_right"):
-				player_direction = (player_direction + 1) % 8	
-				orientation = -1
-				is_input = true
-			if Input.is_action_just_pressed("apply_button"):
-				gamemaster.player_attack();
-				is_input = true
-				is_action = true
-
-			if is_input:
-				if is_move:
-					# 移動を指示された場合
+		elif current_ui_state == UIState.ItemSelection:
+			if Input.is_action_just_pressed("move_down"):
+				selected_item = (selected_item + 1) % item_list.size()
+				update_item_label()
+			elif Input.is_action_just_pressed("move_up"):
+				selected_item = (selected_item - 1 + item_list.size()) % item_list.size()
+				update_item_label()
+			elif Input.is_action_just_pressed("apply_button"):
+				# 実行ボタンを押したらアイテムを使ってすべてのコマンド用UIを閉じる
+				if gamemaster.player_can_use_item(selected_item):
 					gamemaster.clear_message()
-					# GameMasterに問い合わせて移動可能かどうかを決める。
-					# 平行移動
-					var next_player_position = player_position + direction
-					gamemaster.player_turn(player_direction)
-					player.set_next_abs_rotation(player_direction)
-					# mapに目標位置に移動可能かどうか問い合わせる
-					if gamemaster.player_move(next_player_position):
-						# 移動可能だった場合、gamemaster内部の状態はすでに移動済みである。
-						# gamemaster側でターンを消費
+					gamemaster.player_use_item(selected_item)
+					# ターンを消費する
+					gamemaster.process()
+					# TODO: プレイヤーの回復アニメーションを指定
+					player.set_action(0)
+					# godot側でアニメーションを実行させる。
+					process_mob_animation()
+					
+					# メッセージの表示
+					message_label.text = ""
+					for msg_str in gamemaster.message:
+						message_label.text += (msg_str + "\n")
+					update_status_label()
+
+					# コマンドUIを閉じてプレイヤー操作に戻る
+					current_ui_state = UIState.Player
+					update_item_label()
+					command_area.visible = false
+					
+				else:
+					message_label.text = "そのアイテムは使えません。"
+
+			elif Input.is_action_just_pressed("cancel_button"):
+				# キャンセルボタンを押したらコマンド選択に戻る
+				current_ui_state = UIState.Command
+				update_item_label()
+
+
+		elif current_ui_state == UIState.Player:
+			# コマンド選択UIを経由して行動を決定する。
+			# キャンセルボタンで表示切替を行う。
+			if Input.is_action_just_pressed("cancel_button"):
+				current_ui_state = UIState.Command
+				command_area.visible = true
+				# UIを開いた瞬間にUI用のメッセージを生成する
+				update_command_list()
+				update_command_label()
+
+			# ゴールに前回の移動の結果乗った場合は次の階層へ移動するかどうかを問い合わせるUIを出す
+			elif goal_reached:
+				goal_reached = false
+				current_ui_state = UIState.Command
+				command_area.visible = true
+				update_command_list()
+				update_command_label()
+
+			# それ以外の場合は直接移動もしくは攻撃
+			else:
+				# TODO: 俯瞰視点とFPSを切り替えられるようにする。
+				var direction = Vector2i.ZERO
+				var orientation = 0
+
+				# FPS用の自機方向に対する移動方向の回転
+				var local_y = (player_direction - 1) % 2
+				var local_x = (-player_direction + 2) % 2
+
+				var is_input = false
+				var is_move = false
+				var is_action = false
+				if Input.is_action_pressed("move_up"):
+					# (local_x, local_y) をそのままつかう
+					# 俯瞰
+					direction.y -= 1
+					# FPS
+					#direction.x += local_x
+					#direction.y += local_y
+					player_direction = 0
+					is_input = true
+					is_move = true
+				if Input.is_action_pressed("move_left"):
+					# (local_y, -local_x) をつかう
+					direction.x -= 1
+					#direction.x += local_y
+					#direction.y -= local_x
+					player_direction = 6
+					is_input = true
+					is_move = true
+				if Input.is_action_pressed("move_down"):
+					# (-local_x, -local_y) をつかう
+					direction.y += 1
+					#direction.x -= local_x
+					#direction.y -= local_y
+					player_direction = 4
+					is_input = true
+					is_move = true
+				if Input.is_action_pressed("move_right"):
+					# (-local_y, local_x) をつかう
+					direction.x += 1
+					#direction.x -= local_y
+					#direction.y += local_x
+					player_direction = 2
+					is_input = true
+					is_move = true
+				if Input.is_action_just_pressed("rotate_left"):
+					player_direction = (player_direction + 7) % 8
+					orientation = 1
+					is_input = true
+				if Input.is_action_just_pressed("rotate_right"):
+					player_direction = (player_direction + 1) % 8
+					orientation = -1
+					is_input = true
+				if Input.is_action_just_pressed("apply_button"):
+					gamemaster.player_attack();
+					is_input = true
+					is_action = true
+
+				if is_input:
+					if is_move:
+						# 移動を指示された場合
+						gamemaster.clear_message()
+						# GameMasterに問い合わせて移動可能かどうかを決める。
+						# 平行移動
+						var next_player_position = player_position + direction
+						gamemaster.player_turn(player_direction)
+						player.set_next_abs_rotation(player_direction)
+						# mapに目標位置に移動可能かどうか問い合わせる
+						if gamemaster.player_move(next_player_position):
+							# 移動可能だった場合、gamemaster内部の状態はすでに移動済みである。
+							# gamemaster側でターンを消費
+							gamemaster.process()
+							# godot側playerを内部的に移動させる
+							player.set_next_position(gridmap.grid_to_geometry(next_player_position))
+							player_position = next_player_position
+							# アニメーションを実行させる。
+							process_mob_animation()
+
+							# 拾われたアイテムの処理
+							remove_dropped_items()
+
+							# メッセージの表示
+							message_label.text = ""
+							for msg_str in gamemaster.message:
+								message_label.text += (msg_str + "\n")
+							update_status_label()
+							update_item_label()
+
+							# 移動した結果ゴールに到達したときはgoal_reachedをtrueに
+							if goal_position == player_position:
+								goal_reached = true
+
+						else:
+							print("position ", next_player_position, " is invalid, unable to move.")
+					elif is_action:
+						# プレイヤーがターンを消費する行動を行う場合
+						gamemaster.clear_message()
+						# 今回はattackのみ
+						player.set_action(0)
 						gamemaster.process()
-						# godot側playerを内部的に移動させる
-						player.set_next_position(gridmap.grid_to_geometry(next_player_position))
-						player_position = next_player_position
-						# アニメーションを実行させる。
+						# この結果、倒されたmobがいる場合はそのmobを退場させる。
+						var defeated_ids = gamemaster.get_defeated_mob_ids()
+						for id in defeated_ids:
+							#print("defated mob id: ", id)
+							for mob_idx in range(len(mob_list)):
+								var mob = mob_list[mob_idx]
+								#print("  mob[" , mob_idx, "] id: ", mob.mob_id)
+								if mob.mob_id == id:
+									mob.queue_free()
+									mob_list.remove_at(mob_idx)
+									break
+						# godot側でアニメーションを実行させる。
 						process_mob_animation()
-						
-						# 拾われたアイテムの処理
-						remove_dropped_items()
-						
+
+						# 落とされたアイテムの処理
+						add_dropped_items()
+
 						# メッセージの表示
 						message_label.text = ""
 						for msg_str in gamemaster.message:
@@ -321,46 +427,10 @@ func _process(delta):
 						update_status_label()
 						update_item_label()
 
-						# 移動した結果ゴールに到達したときはgoal_reachedをtrueに
-						if goal_position == player_position:
-							goal_reached = true
-
 					else:
-						print("position ", next_player_position, " is invalid, unable to move.")
-				elif is_action:
-					# プレイヤーがターンを消費する行動を行う場合
-					gamemaster.clear_message()
-					# 今回はattackのみ
-					player.set_action(0)
-					gamemaster.process()
-					# この結果、倒されたmobがいる場合はそのmobを退場させる。
-					var defeated_ids = gamemaster.get_defeated_mob_ids()
-					for id in defeated_ids:
-						#print("defated mob id: ", id)
-						for mob_idx in range(len(mob_list)):
-							var mob = mob_list[mob_idx]
-							#print("  mob[" , mob_idx, "] id: ", mob.mob_id)
-							if mob.mob_id == id:
-								mob.queue_free()
-								mob_list.remove_at(mob_idx)
-								break
-					# godot側でアニメーションを実行させる。
-					process_mob_animation()
-					
-					# 落とされたアイテムの処理
-					add_dropped_items()
-					
-					# メッセージの表示
-					message_label.text = ""
-					for msg_str in gamemaster.message:
-						message_label.text += (msg_str + "\n")
-					update_status_label()
-					update_item_label()
-					
-				else:
-					# 回転移動の場合、ターンは消費されない
-					gamemaster.player_turn(player_direction)
-					player.set_next_rotation(orientation)
+						# 回転移動の場合、ターンは消費されない
+						gamemaster.player_turn(player_direction)
+						player.set_next_rotation(orientation)
 
 	else:
 		pass
